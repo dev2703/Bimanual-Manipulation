@@ -2,12 +2,6 @@ An experimental MuJoCo system for setting a dinner table with two ALOHA 2 arms.
 The current physical learning task is released mug pick-and-place; the full
 drawer, cutlery, plate, and pour sequence remains a research goal.
 
-Architecture and current evidence are tracked in
-[`docs/architecture.md`](docs/architecture.md) and
-[`docs/implementation_status.md`](docs/implementation_status.md). The physical
-handoff, coupled pouring, public-data reuse, and remaining gates are tracked in
-[`docs/coordination_roadmap.md`](docs/coordination_roadmap.md).
-
 Preview the audience-facing ALOHA dinner-table scene on macOS:
 
 ```bash
