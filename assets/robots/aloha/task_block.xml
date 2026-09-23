@@ -1,0 +1,38 @@
+<mujoco model="aloha_physical_block">
+  <include file="scene.xml"/>
+
+  <!-- Presentation-only assets. Collision physics remains inherited from
+       Menagerie plus task_block_geom below. -->
+  <asset>
+    <material name="studio_backdrop" rgba="0.055 0.07 0.10 1" roughness="0.85"/>
+    <material name="work_mat" rgba="0.075 0.105 0.13 1" roughness="0.72"/>
+    <material name="target_accent" rgba="0.12 0.72 0.72 0.72" emission="0.08"/>
+  </asset>
+
+  <worldbody>
+    <!-- Visual-only set dressing: no contact bits, mass, or dynamics. -->
+    <geom name="studio_back_wall" type="box" pos="0 0.58 0.46" size="0.92 0.025 0.58"
+      material="studio_backdrop" contype="0" conaffinity="0" group="5"/>
+    <geom name="studio_side_left" type="box" pos="-0.90 0.08 0.30" size="0.025 0.52 0.42"
+      material="studio_backdrop" contype="0" conaffinity="0" group="5"/>
+    <geom name="studio_side_right" type="box" pos="0.90 0.08 0.30" size="0.025 0.52 0.42"
+      material="studio_backdrop" contype="0" conaffinity="0" group="5"/>
+    <geom name="work_surface_mat" type="box" pos="0 0.12 0.001" size="0.47 0.31 0.002"
+      material="work_mat" contype="0" conaffinity="0" group="5"/>
+    <geom name="target_outer" type="cylinder" pos="0 0.18 0.004" size="0.055 0.001"
+      material="target_accent" contype="0" conaffinity="0" group="5"/>
+    <geom name="target_inner" type="cylinder" pos="0 0.18 0.0052" size="0.043 0.001"
+      material="work_mat" contype="0" conaffinity="0" group="5"/>
+
+    <body name="audience_focus" pos="0 0.16 0.16"/>
+    <camera name="audience_cam" mode="targetbody" target="audience_focus"
+      pos="0 -1.52 0.78" fovy="48"/>
+
+    <body name="task_block" pos="0 0.18 0.025">
+      <freejoint/>
+      <geom name="task_block_geom" type="box" size="0.02 0.02 0.02"
+        mass="0.05" condim="6" friction="3.0 0.02 0.002"
+        solref="0.01 1" rgba="0.85 0.18 0.12 1"/>
+    </body>
+  </worldbody>
+</mujoco>

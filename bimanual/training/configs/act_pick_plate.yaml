@@ -1,0 +1,38 @@
+# Phase 4 ACT baseline config for the pick_place_plate bucket.
+#
+# NOT YET RUN (docs/decisions.md Phase 4 notes): this session verified
+# the dataset pipeline end-to-end (generation, LeRobotDataset load,
+# observation contract) but ran out of budget to actually launch and
+# evaluate an ACT training run. This file is a starting point for that,
+# using LeRobot's ACT policy defaults on top of the dataset schema
+# generate.py already produces.
+#
+# Expected invocation once lerobot's training entrypoint is confirmed
+# for this installed version (0.6.1):
+#   uv run python -m lerobot.scripts.train \
+#     --config_path=bimanual/training/configs/act_pick_plate.yaml
+
+dataset:
+  repo_id: local/bimanual-pick-place
+  root: outputs/dataset_pick_place
+
+policy:
+  type: act
+  input_features:
+    observation.images.global: {shape: [256, 256, 3]}
+    observation.images.left_wrist: {shape: [256, 256, 3]}
+    observation.images.right_wrist: {shape: [256, 256, 3]}
+    observation.state: {shape: [12]}
+  output_features:
+    action: {shape: [12]}
+  chunk_size: 20
+  n_action_steps: 10
+
+training:
+  batch_size: 8
+  steps: 20000
+  device: mps
+  log_freq: 100
+  save_freq: 2000
+
+seed: 0
