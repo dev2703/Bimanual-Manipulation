@@ -14,6 +14,53 @@ Watch the first physical dinner skill set the mug at its place setting:
 .venv/bin/mjpython scripts/view_aloha_mug.py --seed 100000
 ```
 
+The separate handled serving-plate scene has a contact-only expert that passed
+50/50 held-out lift, carry, release, and upright-placement trials at ±1.5 cm
+object jitter. The original plain plate has not passed that gate. Watch or
+rerun the handled-plate gate with:
+
+```bash
+.venv/bin/mjpython scripts/view_aloha_plate.py --seed 100000
+.venv/bin/python scripts/aloha_plate_gate.py --episodes 50 --seed-offset 100000
+```
+
+Plate recordings use `--skill plate_pick_place` in
+`bimanual.experts.generate_aloha_table` and replay with the same `--skill`
+option in `bimanual.data.replay_aloha_table`. The plate scene and mug ACT scene
+have separate artifact hashes; their data should not be mixed.
+
+Once the local plate collection finishes, inspect it with
+`make audit-plate replay-plate`. A matching validation split can be generated with:
+
+```bash
+.venv/bin/python -m bimanual.experts.generate_aloha_table \
+  --skill plate_pick_place --split val --episodes 10
+```
+
+An isolated drawer scene now has clearance behind its physical handle. Its
+contact-only expert passed 50/50 held-out open-and-release trials, with gripper
+contact on the handle measured during each pull. The original mug scene's
+near-flush handle does not pass that contact gate. Preview and retest it with:
+
+```bash
+.venv/bin/mjpython scripts/view_aloha_drawer.py --seed 100000
+.venv/bin/python scripts/aloha_drawer_gate.py --episodes 50 --seed-offset 100000
+```
+
+Drawer recordings use `--skill drawer_open`; `make audit-drawer replay-drawer`
+checks a completed training split. Keep each scene variant's dataset separate
+until the physical geometry is consolidated and a combined task is revalidated.
+
+The dinner dataset writer finalizes completed episodes individually. To
+continue a cleanly interrupted collection, rerun it with the same skill,
+split, root, and episode target plus `--resume`. For example, after stopping
+the plate collection:
+
+```bash
+.venv/bin/python -m bimanual.experts.generate_aloha_table \
+  --skill plate_pick_place --split train --episodes 50 --resume
+```
+
 For the dinner ACT baseline, audit and replay the generated mug data, then
 train with the fixed 20-step chunk and 8-step execution prefix:
 

@@ -127,8 +127,8 @@ TABLE_SETTING_OBJECTS = {
 class AlohaTableSettingEnv(AlohaPhysicalEnv):
     """Primary dinner-table scene; skills are promoted here after block gates."""
 
-    def __init__(self) -> None:
-        scene = Path(__file__).parents[2] / "assets" / "robots" / "aloha" / "task_table_setting.xml"
+    def __init__(self, scene_path: str | Path | None = None) -> None:
+        scene = scene_path or Path(__file__).parents[2] / "assets" / "robots" / "aloha" / "task_table_setting.xml"
         super().__init__(scene)
 
     def reset(
@@ -145,6 +145,8 @@ class AlohaTableSettingEnv(AlohaPhysicalEnv):
             joint = self.model.joint(f"{name}_free")
             address = int(joint.qposadr[0])
             position = np.asarray(nominal, dtype=np.float64).copy()
+            if name == "plate":
+                position[2] = self.model.geom("plate_geom").size[1]
             if randomize_objects:
                 position[:2] += rng.uniform(-position_jitter, position_jitter, size=2)
             self.data.qpos[address : address + 7] = (*position, 1.0, 0.0, 0.0, 0.0)
@@ -161,9 +163,12 @@ class AlohaTableSettingEnv(AlohaPhysicalEnv):
         )
         return state
 
-    def mug_upright_cosine(self) -> float:
-        address = self.model.joint("mug_free").qposadr[0]
+    def object_upright_cosine(self, name: str) -> float:
+        address = self.model.joint(f"{name}_free").qposadr[0]
         quaternion = self.data.qpos[address + 3 : address + 7]
         rotation = np.empty(9)
         mujoco.mju_quat2Mat(rotation, quaternion)
         return float(rotation[8])
+
+    def mug_upright_cosine(self) -> float:
+        return self.object_upright_cosine("mug")
