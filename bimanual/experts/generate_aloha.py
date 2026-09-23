@@ -9,9 +9,10 @@ from pathlib import Path
 
 import numpy as np
 
-from bimanual.experts.aloha_block import run_block_grasp_lift
 from bimanual.data.audit import audit_dataset
-from bimanual.policy.types import EpisodeManifest, file_sha256
+from bimanual.data.scene_artifacts import scene_artifact_hashes
+from bimanual.experts.aloha_block import run_block_grasp_lift
+from bimanual.policy.types import EpisodeManifest
 from bimanual.sim.aloha_env import ALOHA_BIMANUAL, AlohaPhysicalEnv
 
 IMAGE_MAP = {
@@ -89,7 +90,7 @@ def main() -> None:
     )
     offset = {"train": 0, "val": 100_000, "test": 200_000}[args.split]
     scene_path = Path(__file__).parents[2] / "assets" / "robots" / "aloha" / "task_block.xml"
-    artifact_hashes = {"task_block.xml": f"sha256:{file_sha256(scene_path)}"}
+    artifact_hashes = scene_artifact_hashes(scene_path)
     manifests = []
     for episode in range(args.episodes):
         seed = offset + episode

@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow.dataset as ds
 
+from bimanual.data.scene_artifacts import assert_scene_compatible
 from bimanual.evaluation.aloha_predicates import mug_placed
 from bimanual.sim.aloha_env import TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
 
@@ -68,6 +69,8 @@ def replay_episode(rows: dict[str, list], episode_index: int) -> ReplayResult:
 
 
 def replay_dataset(root: str | Path, max_episodes: int | None = None) -> list[ReplayResult]:
+    scene = Path(__file__).parents[2] / "assets/robots/aloha/task_table_setting.xml"
+    assert_scene_compatible(root, scene)
     table = ds.dataset(Path(root) / "data", format="parquet").to_table(columns=[
         "episode_index", "privileged.scene_seed", "observation.state", "action",
         "privileged.object_positions",

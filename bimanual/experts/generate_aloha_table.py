@@ -10,9 +10,10 @@ from pathlib import Path
 import numpy as np
 
 from bimanual.data.audit import audit_dataset
+from bimanual.data.scene_artifacts import scene_artifact_hashes
 from bimanual.experts.aloha_mug import run_mug_pick_place
 from bimanual.experts.generate_aloha import IMAGE_MAP
-from bimanual.policy.types import EpisodeManifest, file_sha256
+from bimanual.policy.types import EpisodeManifest
 from bimanual.sim.aloha_env import ALOHA_BIMANUAL, TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
 
 OBJECT_NAMES = tuple(TABLE_SETTING_OBJECTS)
@@ -88,7 +89,7 @@ def main() -> None:
         use_videos=True,
     )
     scene = Path(__file__).parents[2] / "assets" / "robots" / "aloha" / "task_table_setting.xml"
-    artifact_hashes = {"task_table_setting.xml": f"sha256:{file_sha256(scene)}"}
+    artifact_hashes = scene_artifact_hashes(scene)
     offset = {"train": 0, "val": 100_000, "test": 200_000}[args.split]
     manifests = []
     for index in range(args.episodes):

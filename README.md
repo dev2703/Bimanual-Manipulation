@@ -31,9 +31,9 @@ Run a trained dinner-task ACT checkpoint with the interactive MuJoCo viewer:
 ```
 
 The checkpoint path above is the expected output of the full mug ACT run, not a
-checkpoint currently present in the repository. The configuration and a
-one-update processor-correct inference smoke test are complete; closed-loop
-dinner-task policy training is still open.
+checkpoint currently present in the repository. A short ACT learning probe
+completed, but held-out mug success has not been established; the full
+closed-loop dinner-task policy gate remains open.
 
 Problem: an end-to-end simulated Physical AI system for bimanual manipulation for setting up a dinner table.
 

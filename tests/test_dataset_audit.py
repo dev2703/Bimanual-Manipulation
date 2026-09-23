@@ -52,3 +52,23 @@ def test_split_audit_rejects_seed_leakage(tmp_path):
     _dataset(val, seeds=(2, 3))
     with pytest.raises(ValueError, match="leakage"):
         assert_disjoint_splits(train, val)
+
+
+def test_audit_rejects_scene_seed_mixed_within_episode(tmp_path):
+    root = tmp_path / "mixed"
+    _dataset(root)
+    path = root / "data/data.parquet"
+    columns = pq.read_table(path).to_pydict()
+    columns["privileged.scene_seed"][0] = 2
+    pq.write_table(pa.table(columns), path)
+    with pytest.raises(ValueError, match="multiple scene seeds"):
+        audit_dataset(root)
+
+
+def test_audit_rejects_manifest_episode_seed_swap(tmp_path):
+    root = tmp_path / "swapped"
+    _dataset(root)
+    path = root / "episode_manifests.json"
+    path.write_text(json.dumps([{"seed": 2}, {"seed": 1}]))
+    with pytest.raises(ValueError, match="disagrees with its manifest"):
+        audit_dataset(root)

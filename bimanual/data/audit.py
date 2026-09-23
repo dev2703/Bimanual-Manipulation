@@ -61,6 +61,12 @@ def audit_dataset(root: str | Path, *, expected_fps: int = 10) -> DatasetAudit:
         raise ValueError("episode manifest seeds must be unique")
     if set(manifest_seeds) != set(seeds.tolist()):
         raise ValueError("manifest seeds do not match frame seeds")
+    for episode_id in episode_ids:
+        episode_seeds = np.unique(seeds[episodes == episode_id])
+        if len(episode_seeds) != 1:
+            raise ValueError(f"episode {episode_id} contains multiple scene seeds: {episode_seeds.tolist()}")
+        if int(episode_id) >= len(manifests) or int(manifests[int(episode_id)]["seed"]) != int(episode_seeds[0]):
+            raise ValueError(f"episode {episode_id} seed disagrees with its manifest")
 
     same_episode = episodes[1:] == episodes[:-1]
     dt = np.diff(sim_time)[same_episode]
@@ -110,4 +116,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
