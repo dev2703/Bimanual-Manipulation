@@ -28,14 +28,17 @@ class AlohaRolloutResult:
     final_xy_error: float | None = None
 
 
-def _raw_observation(env: AlohaPhysicalEnv, device: str) -> dict[str, torch.Tensor]:
+def _raw_observation(env: AlohaPhysicalEnv, device: str, instruction: str | None = None) -> dict[str, Any]:
     frames = env.render()
-    return {
+    observation = {
         "observation.images.global": _frame_to_batch_image(frames["overhead_cam"], device).squeeze(0),
         "observation.images.left_wrist": _frame_to_batch_image(frames["wrist_cam_left"], device).squeeze(0),
         "observation.images.right_wrist": _frame_to_batch_image(frames["wrist_cam_right"], device).squeeze(0),
         "observation.state": torch.from_numpy(env.state_vector()).to(device),
     }
+    if instruction is not None:
+        observation["task"] = instruction
+    return observation
 
 
 def run_aloha_act_episode(
@@ -49,6 +52,7 @@ def run_aloha_act_episode(
     lift_threshold: float = 0.08,
     retain_steps: int = 5,
     task: str = "block_lift",
+    instruction: str | None = None,
     after_control_step: Callable[[], None] | None = None,
 ) -> AlohaRolloutResult:
     """Execute ACT at 10 Hz while stepping the ALOHA controller at 30 Hz."""
@@ -58,6 +62,8 @@ def run_aloha_act_episode(
         raise ValueError(f"unsupported ALOHA task {task!r}")
     if task == "mug_pick_place" and not isinstance(env, AlohaTableSettingEnv):
         raise TypeError("mug_pick_place requires AlohaTableSettingEnv")
+    if instruction is not None and preprocessor is None:
+        raise ValueError("language-conditioned inference requires the saved preprocessor")
     policy.reset()
     object_key = "mug_pos" if task == "mug_pick_place" else "task_block_pos"
     initial_position = env.oracle_state()[object_key].copy()
@@ -67,7 +73,7 @@ def run_aloha_act_episode(
     retained = 0
     carried_to_target = False
     for policy_step in range(1, max_policy_steps + 1):
-        raw = _raw_observation(env, device)
+        raw = _raw_observation(env, device, instruction)
         batch = preprocessor(raw) if preprocessor is not None else {k: v.unsqueeze(0) for k, v in raw.items()}
         with torch.no_grad():
             action = policy.select_action(batch)

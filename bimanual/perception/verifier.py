@@ -57,9 +57,12 @@ class PredicateVerifier(nn.Module):
             _ConvBlock(32, 64),
             _ConvBlock(64, 128),
             _ConvBlock(128, 128),
-            nn.AdaptiveAvgPool2d(1),
+            # Retain coarse spatial layout: a global average discards the
+            # location needed to distinguish a placed mug from one elsewhere
+            # on the same table.
+            nn.AdaptiveAvgPool2d((4, 4)),
         )
-        self.head = nn.Linear(128, len(predicate_names))
+        self.head = nn.Linear(128 * 4 * 4, len(predicate_names))
 
     def forward(self, global_img: torch.Tensor, left_img: torch.Tensor, right_img: torch.Tensor) -> torch.Tensor:
         """Each arg is (B, 3, H, W). Returns (B, n_predicates) logits."""

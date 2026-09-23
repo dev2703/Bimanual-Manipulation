@@ -13,10 +13,12 @@ from bimanual.data.scene_artifacts import assert_scene_compatible
 from bimanual.evaluation.aloha_contacts import right_gripper_touches_drawer_handle
 from bimanual.evaluation.aloha_predicates import drawer_opened, mug_placed, plate_placed
 from bimanual.sim.aloha_env import TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
+from bimanual.sim.perturbation import move_ungrasped_object
 
 SCENES = {
     "mug_pick_place": "task_table_setting.xml",
     "plate_pick_place": "task_table_setting_plate_v2.xml",
+    "plate_recovery": "task_table_setting_plate_v2.xml",
     "drawer_open": "task_table_setting_drawer_v2.xml",
 }
 
@@ -94,10 +96,15 @@ def replay_episode(
         carried = False
         object_errors = []
         joint_errors = []
-        for action, state, objects in zip(
+        event_count = 0
+        for index, (action, state, objects) in enumerate(zip(
             rows["action"], rows["observation.state"], rows["privileged.object_positions"],
             strict=True,
-        ):
+        )):
+            if task == "plate_recovery" and float(np.asarray(rows["privileged.failure_event"][index]).reshape(-1)[0]) > 0.5:
+                shift = np.asarray(rows["privileged.perturbation_xy"][index], dtype=np.float64)
+                move_ungrasped_object(env, "plate", shift)
+                event_count += 1
             position = env.oracle_state()[f"{object_name}_pos"]
             object_errors.append(float(np.linalg.norm(position - np.asarray(objects[object_offset:object_offset + 3]))))
             joint_errors.append(float(np.max(np.abs(env.state_vector() - np.asarray(state)))))
@@ -108,6 +115,8 @@ def replay_episode(
             )
             for _ in range(3):
                 env.step(np.asarray(action, dtype=np.float64))
+        if task == "plate_recovery" and event_count != 1:
+            raise ValueError(f"recovery episode {episode_index} must contain exactly one perturbation event")
         final = env.oracle_state()[f"{object_name}_pos"]
         predicate = mug_placed if object_name == "mug" else plate_placed
         success = predicate(
@@ -136,6 +145,8 @@ def replay_dataset(
     ]
     if task == "drawer_open":
         columns.extend(["privileged.drawer_opening", "privileged.phase"])
+    if task == "plate_recovery":
+        columns.extend(["privileged.failure_event", "privileged.perturbation_xy"])
     table = ds.dataset(Path(root) / "data", format="parquet").to_table(columns=columns)
     data = table.to_pydict()
     episodes: dict[int, dict[str, list]] = {}

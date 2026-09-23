@@ -49,3 +49,18 @@ def test_aloha_runner_holds_each_policy_action_for_three_control_steps():
     assert result.control_steps == env.steps == 9
     assert policy.calls == 3
     assert callbacks == list(range(1, 10))
+
+
+def test_aloha_runner_passes_instruction_to_saved_processor():
+    env, policy = _Env(), _Policy()
+    seen = []
+
+    def preprocessor(raw):
+        seen.append(raw.pop("task"))
+        return {key: value.unsqueeze(0) for key, value in raw.items()}
+
+    run_aloha_act_episode(
+        env, policy, device="cpu", retain_steps=1, instruction="Place the mug.",
+        preprocessor=preprocessor,
+    )
+    assert seen and set(seen) == {"Place the mug."}

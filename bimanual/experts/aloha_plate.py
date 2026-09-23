@@ -10,6 +10,7 @@ from bimanual.control.aloha_ik import AlohaIK
 from bimanual.evaluation.aloha_predicates import plate_placed
 from bimanual.experts.aloha_motion import CLOSED, OPEN, move_arm, step_recorded
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
+from bimanual.sim.perturbation import move_ungrasped_object
 
 HANDLE_X_OFFSET = 0.072
 GRASP_Z_OFFSET = 0.025
@@ -25,9 +26,14 @@ class AlohaPlateResult:
     transit_height: float
     final_upright_cosine: float
     record: list[dict]
+    perturbed: bool = False
+    replanned: bool = False
 
 
-def run_plate_pick_place(env: AlohaTableSettingEnv, record_frames: bool = False) -> AlohaPlateResult:
+def run_plate_pick_place(
+    env: AlohaTableSettingEnv, record_frames: bool = False,
+    perturbation_xy: np.ndarray | None = None, replan_after_perturb: bool = True,
+) -> AlohaPlateResult:
     """Pinch the physical serving-plate handle, carry, place, and release."""
     arm = "right"
     record: list[dict] | None = [] if record_frames else None
@@ -37,6 +43,14 @@ def run_plate_pick_place(env: AlohaTableSettingEnv, record_frames: bool = False)
     grasp = initial + [HANDLE_X_OFFSET, 0, GRASP_Z_OFFSET]
 
     move_arm(env, ik, grasp + [0, 0, 0.16], OPEN, 50, arm, "APPROACH", record)
+    if perturbation_xy is not None:
+        move_ungrasped_object(env, "plate", perturbation_xy)
+        if replan_after_perturb:
+            # The event happens after APPROACH, before PRE_GRASP. A fresh
+            # visual observation is recorded by the next control step; this
+            # expert's privileged re-localization is an upper bound for a
+            # learned visual recovery policy.
+            grasp = env.oracle_state()["plate_pos"].copy() + [HANDLE_X_OFFSET, 0, GRASP_Z_OFFSET]
     move_arm(env, ik, grasp, OPEN, 50, arm, "PRE_GRASP", record)
     for _ in range(100):
         action = env.data.ctrl.copy()
@@ -82,4 +96,5 @@ def run_plate_pick_place(env: AlohaTableSettingEnv, record_frames: bool = False)
     )
     return AlohaPlateResult(
         success, initial, final, target, peak_height, transit_height, upright, record or [],
+        perturbation_xy is not None, perturbation_xy is not None and replan_after_perturb,
     )

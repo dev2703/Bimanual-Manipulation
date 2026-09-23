@@ -45,6 +45,11 @@ SKILLS = {
         "Set the dinner table: place the serving plate in the centre.",
         "aloha_contact_plate_v2", run_plate_pick_place,
     ),
+    "plate_recovery": TableSkill(
+        "plate_recovery", "task_table_setting_plate_v2.xml",
+        "Set the dinner table: place the serving plate in the centre.",
+        "aloha_contact_plate_moved_recovery_v1", run_plate_pick_place,
+    ),
     "drawer_open": TableSkill(
         "drawer", "task_table_setting_drawer_v2.xml",
         "Open the top drawer of the dinner cabinet.",
@@ -116,9 +121,9 @@ def _compatible_features(actual: dict, expected: dict) -> bool:
     )
 
 
-def make_features() -> dict:
+def make_features(recovery: bool = False) -> dict:
     names = list(ALOHA_BIMANUAL.state_names)
-    return {
+    features = {
         **{
             key: {"dtype": "video", "shape": (256, 256, 3), "names": ["height", "width", "channel"]}
             for key in IMAGE_MAP.values()
@@ -136,9 +141,21 @@ def make_features() -> dict:
         "privileged.sim_time": {"dtype": "float32", "shape": (1,), "names": None},
         "privileged.scene_seed": {"dtype": "int64", "shape": (1,), "names": None},
     }
+    if recovery:
+        features.update({
+            "privileged.failure_event": {"dtype": "float32", "shape": (1,), "names": None},
+            "privileged.recovery_active": {"dtype": "float32", "shape": (1,), "names": None},
+            "privileged.recovery_outcome": {"dtype": "float32", "shape": (1,), "names": None},
+            "privileged.perturbation_xy": {"dtype": "float32", "shape": (2,), "names": ["x", "y"]},
+        })
+    return features
 
 
-def write_episode(dataset, record: list[dict], task: str, seed: int) -> None:
+def write_episode(dataset, record: list[dict], task: str, seed: int,
+                  recovery: bool = False, perturbation_xy: np.ndarray | None = None) -> None:
+    if recovery and (perturbation_xy is None or np.asarray(perturbation_xy).shape != (2,)):
+        raise ValueError("recovery episodes require the exact exogenous XY shift")
+    event_recorded = False
     for tick in record:
         observation, oracle = tick["observation"], tick["oracle"]
         frame = {destination: tick["frames"][source] for source, destination in IMAGE_MAP.items()}
@@ -156,6 +173,16 @@ def write_episode(dataset, record: list[dict], task: str, seed: int) -> None:
             "privileged.scene_seed": np.array([seed], dtype=np.int64),
             "task": task,
         })
+        if recovery:
+            active = tick["phase"] != "APPROACH"
+            event = active and not event_recorded
+            event_recorded |= event
+            frame.update({
+                "privileged.failure_event": np.array([float(event)], dtype=np.float32),
+                "privileged.recovery_active": np.array([float(active)], dtype=np.float32),
+                "privileged.recovery_outcome": np.array([1.0], dtype=np.float32),
+                "privileged.perturbation_xy": np.asarray(perturbation_xy, dtype=np.float32),
+            })
         dataset.add_frame(frame)
     dataset.save_episode()
 
@@ -176,6 +203,7 @@ def main() -> None:
     if args.checkpoint_every < 1:
         parser.error("--checkpoint-every must be positive")
     skill = SKILLS[args.skill]
+    recovery = args.skill == "plate_recovery"
     root = Path(args.root or f"outputs/aloha_{skill.bucket}_{args.split}")
     repo_id = args.repo_id or f"local/aloha-dinner-{skill.bucket}"
     if args.resume and not root.exists():
@@ -197,14 +225,14 @@ def main() -> None:
             raise ValueError(f"dataset already has {start_index} episodes, more than requested {args.episodes}")
         manifests = _recover_manifests(root, start_index, offset, skill, args.split, artifact_hashes)
         dataset = LeRobotDataset.resume(repo_id=repo_id, root=root)
-        if dataset.meta.fps != 10 or not _compatible_features(dataset.meta.features, make_features()):
+        if dataset.meta.fps != 10 or not _compatible_features(dataset.meta.features, make_features(recovery)):
             raise ValueError("existing dataset timing or feature schema does not match")
         _save_manifests(root, manifests)
     else:
         dataset = LeRobotDataset.create(
             repo_id=repo_id,
             fps=10,
-            features=make_features(),
+            features=make_features(recovery),
             root=root,
             robot_type=ALOHA_BIMANUAL.name,
             use_videos=True,
@@ -217,12 +245,22 @@ def main() -> None:
         env = AlohaTableSettingEnv(scene)
         try:
             env.reset(seed=seed, randomize_objects=True)
-            result = skill.run(env, record_frames=True)
+            if recovery:
+                rng = np.random.default_rng(seed)
+                angle = rng.uniform(-np.pi, np.pi)
+                shift = 0.035 * np.array([np.cos(angle), np.sin(angle)])
+                result = run_plate_pick_place(
+                    env, record_frames=True, perturbation_xy=shift,
+                    replan_after_perturb=True,
+                )
+            else:
+                result = skill.run(env, record_frames=True)
         finally:
             env.close()
         if not result.success:
             raise RuntimeError(f"{skill.bucket} expert failed seed={seed}: {result}")
-        write_episode(dataset, result.record, skill.instruction, seed)
+        write_episode(dataset, result.record, skill.instruction, seed,
+                      recovery=recovery, perturbation_xy=shift if recovery else None)
         manifests.append(_manifest(skill, seed, args.split, artifact_hashes))
         _save_manifests(root, manifests)
         print(f"episode={index+1}/{args.episodes} seed={seed} frames={len(result.record)}")

@@ -1,0 +1,16 @@
+<mujoco model="aloha_physical_handoff_baton">
+  <include file="scene.xml"/>
+  <asset>
+    <material name="linen" rgba="0.16 0.19 0.17 1" roughness="0.9"/>
+  </asset>
+  <worldbody>
+    <geom name="runner_visual" type="box" pos="0 0.17 0.002" size="0.46 0.28 0.002"
+      material="linen" contype="0" conaffinity="0" group="5"/>
+    <body name="task_block" pos="0 0.18 0.02">
+      <freejoint/>
+      <geom name="handoff_baton" type="box" size="0.075 0.014 0.020"
+        mass="0.03" condim="6" friction="4.0 0.02 0.002"
+        solref="0.01 1" rgba="0.62 0.34 0.15 1"/>
+    </body>
+  </worldbody>
+</mujoco>

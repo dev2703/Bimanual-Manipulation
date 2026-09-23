@@ -82,6 +82,61 @@ checkpoint currently present in the repository. A short ACT learning probe
 completed, but held-out mug success has not been established; the full
 closed-loop dinner-task policy gate remains open.
 
+The physical ALOHA phase-5 path now has a verifier-driven goal loop, a
+three-camera RGB predicate model, and a separate held-out evaluator. Training
+on ordinary expert frames alone gave a misleading perfect frame score: moving
+the mug after the robot finished did not change its answer. Matched images
+with the same robot pose and a moved mug corrected that shortcut. The revised
+verifier reached 100% recall for each class on all 2,170 frames from 10
+held-out episodes, flipped correctly on 10/10 live moved-mug tests, and drove
+the scripted mug expert to 10/10 correct goal transitions. These are
+**isolated mug results**; the composed-task phase-5 gate remains open.
+Generate the matched images and reproduce the training and live gate with:
+
+```bash
+.venv/bin/python scripts/collect_aloha_verifier_pairs.py --episodes 50 \
+  --output outputs/aloha_mug_verifier_pairs_train.npz
+.venv/bin/python scripts/collect_aloha_verifier_pairs.py --episodes 10 \
+  --seed-offset 100000 --output outputs/aloha_mug_verifier_pairs_val.npz
+HF_HOME=outputs/.cache/hf .venv/bin/python -m bimanual.training.train_aloha_verifier \
+  --skill mug_pick_place --train-root outputs/aloha_mug_train \
+  --val-root outputs/aloha_mug_val \
+  --train-counterfactual outputs/aloha_mug_verifier_pairs_train.npz \
+  --val-counterfactual outputs/aloha_mug_verifier_pairs_val.npz \
+  --output outputs/aloha_mug_verifier_grounded.pt
+.venv/bin/python scripts/probe_aloha_verifier_counterfactual.py \
+  outputs/aloha_mug_verifier_grounded.pt
+.venv/bin/python scripts/eval_aloha_verified_executor.py \
+  outputs/aloha_mug_verifier_grounded.pt --episodes 10
+```
+
+An opt-in 37-D cooperative ALOHA state adds relative gripper pose, both EE
+twists, and gripper openings. Existing 14-D ACT checkpoints retain their
+original state contract. A contact-only baton handoff prototype is present,
+but has **not** passed its support-transfer gate; pouring remains open.
+For recovery, a 3.5 cm plate move after approach yielded 50/50 physical
+expert successes when the grasp was replanned and 0/50 with a stale grasp:
+
+```bash
+.venv/bin/python scripts/aloha_plate_recovery_gate.py --episodes 50
+.venv/bin/python -m bimanual.experts.generate_aloha_table \
+  --skill plate_recovery --episodes 50
+.venv/bin/python -m bimanual.data.replay_aloha_table \
+  outputs/aloha_plate_recovery_train --skill plate_recovery
+```
+
+A three-episode recovery recording was audited and replayed successfully,
+including the exact exogenous displacement at its recorded event frame.
+Recovery policy training and the matched with/without-recovery comparison
+remain open.
+
+The SmolVLA adapter loads saved LeRobot processors and uses the same ALOHA
+rollout logic as ACT. The Modal smoke job is defined in
+`bimanual/training/modal_app.py`; it expects an audited 50-episode mug dataset
+in a private `bimanual-dinner` volume and does not contain tokens. A successful
+SmolVLA checkpoint and the plain-instruction versus serialized-memory
+comparison have **not** been produced yet.
+
 Problem: an end-to-end simulated Physical AI system for bimanual manipulation for setting up a dinner table.
 
 The objective is to build a reproducible Physical AI system that can take a natural-language instruction such as:

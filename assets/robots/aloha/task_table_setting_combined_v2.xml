@@ -1,0 +1,89 @@
+<!-- Combined dinner scene: handled plate plus clearance-correct physical drawer. -->
+<mujoco model="aloha_dinner_table_combined_v2">
+  <include file="scene.xml"/>
+  <asset>
+    <texture name="oak" type="2d" builtin="checker" rgb1=".23 .105 .045" rgb2=".31 .15 .065" width="512" height="512"/>
+    <texture name="linen_tex" type="2d" builtin="checker" rgb1=".82 .76 .65" rgb2=".76 .69 .58" width="256" height="256"/>
+    <texture name="tile" type="2d" builtin="checker" rgb1=".76 .78 .75" rgb2=".61 .65 .62" width="256" height="256"/>
+    <material name="oak_floor" texture="oak" texrepeat="8 5" texuniform="true" roughness=".75"/>
+    <material name="linen" texture="linen_tex" texrepeat="12 8" texuniform="true" roughness=".92"/>
+    <material name="backsplash" texture="tile" texrepeat="10 4" texuniform="true" roughness=".75"/>
+    <material name="wall_cream" rgba=".72 .68 .59 1" roughness=".95"/>
+    <material name="cabinet_paint" rgba=".18 .25 .23 1" roughness=".6"/>
+    <material name="cabinet_wood" rgba=".34 .17 .075 1" roughness=".72"/>
+    <material name="placemat" rgba=".16 .23 .21 1" roughness=".8"/>
+    <material name="ceramic" rgba=".94 .925 .86 1" specular=".28" shininess=".4"/>
+    <material name="blue_glaze" rgba=".12 .35 .43 1" specular=".32" shininess=".46"/>
+    <material name="glass" rgba=".15 .48 .53 .78" specular=".62" shininess=".8"/>
+    <material name="steel" rgba=".66 .69 .70 1" specular=".82" shininess=".9"/>
+    <material name="brass" rgba=".60 .40 .12 1" specular=".55" shininess=".65"/>
+    <material name="napkin" rgba=".48 .16 .12 1" roughness=".9"/>
+    <material name="plant" rgba=".10 .34 .15 1" roughness=".9"/>
+    <material name="region" rgba=".69 .48 .16 .20" emission=".025"/>
+  </asset>
+  <default>
+    <default class="tableware"><geom condim="6" friction="3 .03 .002" solref=".01 1" solimp=".9 .95 .001"/></default>
+    <default class="showcase"><geom group="5" contype="0" conaffinity="0"/></default>
+  </default>
+  <worldbody>
+    <!-- Visual-only residential kitchen. -->
+    <geom name="room_floor" class="showcase" type="plane" pos="0 0 -.748" size="2.4 2 .01" material="oak_floor"/>
+    <geom name="room_back_wall" class="showcase" type="box" pos="0 .82 .34" size="1.35 .025 1.08" material="wall_cream"/>
+    <geom name="kitchen_backsplash" class="showcase" type="box" pos="0 .785 .32" size="1.05 .012 .25" material="backsplash"/>
+    <geom name="back_counter" class="showcase" type="box" pos="0 .69 -.05" size="1.05 .13 .055" material="cabinet_wood"/>
+    <geom name="base_cabinet_l" class="showcase" type="box" pos="-.60 .72 -.34" size=".42 .11 .24" material="cabinet_paint"/>
+    <geom name="base_cabinet_r" class="showcase" type="box" pos=".60 .72 -.34" size=".42 .11 .24" material="cabinet_paint"/>
+    <geom name="upper_cabinet_l" class="showcase" type="box" pos="-.64 .79 .64" size=".34 .08 .29" material="cabinet_paint"/>
+    <geom name="upper_cabinet_r" class="showcase" type="box" pos=".64 .79 .64" size=".34 .08 .29" material="cabinet_paint"/>
+    <geom name="pull_l" class="showcase" type="capsule" fromto="-.38 .695 -.34 -.30 .695 -.34" size=".008" material="brass"/>
+    <geom name="pull_r" class="showcase" type="capsule" fromto=".30 .695 -.34 .38 .695 -.34" size=".008" material="brass"/>
+
+    <!-- Linen-covered dining table and recognisable place setting. -->
+    <geom name="table_linen" class="showcase" type="box" pos="0 .015 .002" size=".56 .345 .003" material="linen"/>
+    <geom name="place_mat" class="showcase" type="box" pos="0 -.105 .006" size=".27 .145 .002" material="placemat"/>
+    <geom name="napkin_fold" class="showcase" type="box" pos="-.205 -.11 .011" size=".042 .075 .004" material="napkin" euler="0 0 -.08"/>
+    <geom name="water_glass" class="showcase" type="cylinder" pos=".43 .15 .045" size=".025 .045" material="glass"/>
+    <geom name="center_vase" class="showcase" type="cylinder" pos="0 .245 .055" size=".030 .055" material="blue_glaze"/>
+    <geom name="plant_stem" class="showcase" type="capsule" fromto="0 .245 .105 0 .245 .20" size=".006" material="plant"/>
+    <geom name="plant_leaf_l" class="showcase" type="ellipsoid" pos="-.025 .245 .16" size=".038 .012 .020" material="plant" euler="0 0 .6"/>
+    <geom name="plant_leaf_r" class="showcase" type="ellipsoid" pos=".025 .245 .185" size=".038 .012 .020" material="plant" euler="0 0 -.6"/>
+    <light name="dining_key" pos="-.35 -.25 1.25" dir=".2 .25 -1" diffuse=".86 .71 .53" specular=".20 .16 .10" cutoff="58"/>
+    <light name="dining_fill" pos=".55 -.45 .90" dir="-.25 .35 -.8" diffuse=".32 .42 .48" specular=".08 .10 .12" cutoff="62" castshadow="false"/>
+
+    <!-- Physical shallow drawer at the back of the table. -->
+    <body name="cabinet" pos="0 .43 .105">
+      <geom name="cabinet_back" type="box" pos="0 .035 0" size=".23 .018 .105" material="cabinet_wood"/>
+      <geom name="cabinet_left" type="box" pos="-.215 -.075 0" size=".015 .125 .105" material="cabinet_wood"/>
+      <geom name="cabinet_right" type="box" pos=".215 -.075 0" size=".015 .125 .105" material="cabinet_wood"/>
+      <geom name="cabinet_bottom" type="box" pos="0 -.075 -.09" size=".23 .125 .015" material="cabinet_wood"/>
+      <body name="top_drawer">
+        <joint name="drawer_slide" type="slide" axis="0 -1 0" range="0 .16" damping="3" frictionloss="1"/>
+        <geom name="drawer_floor" type="box" pos="0 -.085 -.045" size=".185 .10 .010" material="ceramic"/>
+        <geom name="drawer_front" type="box" pos="0 -.225 -.018" size=".19 .014 .050" material="cabinet_paint"/>
+        <geom name="drawer_handle_left_mount" type="capsule" fromto="-.055 -.238 -.018 -.055 -.285 -.018" size=".006" material="brass"/>
+        <geom name="drawer_handle_right_mount" type="capsule" fromto=".055 -.238 -.018 .055 -.285 -.018" size=".006" material="brass"/>
+        <geom name="drawer_handle" type="capsule" fromto="-.055 -.285 -.018 .055 -.285 -.018" size=".008" material="brass"/>
+      </body>
+    </body>
+
+    <!-- Physical, gripper-scaled dinner objects. -->
+    <body name="plate" pos=".15 -.02 .012">
+      <freejoint name="plate_free"/>
+      <geom name="plate_geom" class="tableware" type="cylinder" size=".055 .012" mass=".08" material="ceramic"/>
+      <geom name="plate_handle" class="tableware" type="capsule" fromto=".050 0 .010 .092 0 .010" size=".010" mass=".012" material="ceramic"/>
+      <geom name="plate_rim" class="showcase" type="cylinder" pos="0 0 .013" size=".046 .001" material="placemat"/>
+    </body>
+    <body name="mug" pos=".30 .12 .030"><freejoint name="mug_free"/><geom name="mug_body" class="tableware" type="cylinder" size=".032 .030" mass=".048" material="blue_glaze"/><geom name="mug_handle" class="tableware" type="capsule" fromto=".032 0 .010 .055 0 .010" size=".006" mass=".003" material="blue_glaze"/></body>
+    <body name="bottle" pos="-.30 .12 .045"><freejoint name="bottle_free"/><geom name="bottle_body" class="tableware" type="cylinder" size=".026 .045" mass=".05" material="glass"/><geom name="bottle_neck" class="tableware" type="cylinder" pos="0 0 .063" size=".013 .018" mass=".008" material="glass"/></body>
+    <body name="fork" pos="-.10 .355 .077"><freejoint name="fork_free"/><geom name="fork_handle" class="tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".016" material="steel"/><geom name="fork_head" class="tableware" type="box" pos="0 .058 0" size=".017 .017 .005" mass=".005" material="steel"/></body>
+    <body name="spoon" pos=".10 .355 .077"><freejoint name="spoon_free"/><geom name="spoon_handle" class="tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".016" material="steel"/><geom name="spoon_bowl" class="tableware" type="ellipsoid" pos="0 .064 0" size=".017 .025 .006" mass=".005" material="steel"/></body>
+
+    <!-- Subtle final-layout guides, audience-only. -->
+    <site name="plate_region" type="cylinder" pos="0 -.105 .009" size=".065 .001" material="region" group="5"/>
+    <site name="fork_region" type="box" pos="-.115 -.105 .009" size=".014 .066 .001" material="region" group="5"/>
+    <site name="spoon_region" type="box" pos=".115 -.105 .009" size=".014 .066 .001" material="region" group="5"/>
+    <site name="mug_region" type="cylinder" pos=".30 -.08 .009" size=".045 .001" material="region" group="5"/>
+    <body name="dinner_audience_focus" pos="0 .06 .10"/>
+    <camera name="audience_cam" mode="targetbody" target="dinner_audience_focus" pos="0 -1.32 .66" fovy="43"/>
+  </worldbody>
+</mujoco>

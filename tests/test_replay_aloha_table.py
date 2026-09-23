@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from bimanual.data.replay_aloha_table import replay_episode
 from bimanual.sim.aloha_env import TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
@@ -68,3 +69,25 @@ def test_replay_no_action_does_not_open_drawer():
     assert result.target_name == "drawer"
     assert not result.final_success
     assert np.isclose(result.max_target_error, 0.0)
+
+
+def test_recovery_replay_requires_exactly_one_disturbance_event():
+    scene = Path(__file__).parents[1] / "assets/robots/aloha/task_table_setting_plate_v2.xml"
+    env = AlohaTableSettingEnv(scene)
+    try:
+        env.reset(seed=100_000, randomize_objects=True)
+        row = {
+            "privileged.scene_seed": [100_000],
+            "observation.state": [env.state_vector().tolist()],
+            "action": [env.data.ctrl.copy().tolist()],
+            "privileged.object_positions": [[
+                value for name in TABLE_SETTING_OBJECTS
+                for value in env.oracle_state()[f"{name}_pos"]
+            ]],
+            "privileged.failure_event": [[0.0]],
+            "privileged.perturbation_xy": [[0.02, 0.0]],
+        }
+    finally:
+        env.close()
+    with pytest.raises(ValueError, match="exactly one perturbation"):
+        replay_episode(row, 0, "plate_recovery")
