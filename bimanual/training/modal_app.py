@@ -20,12 +20,41 @@ DATASET_ROOT = "/workspace/datasets/aloha_mug_train"
 OUTPUT_ROOT = "/workspace/checkpoints"
 image = modal.Image.debian_slim(python_version="3.12").pip_install(
     "lerobot[smolvla,dataset]==0.6.1",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "transformers==5.5.4",
 )
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 app = modal.App("bimanual-dinner-smolvla", image=image)
 
 
-@app.function(gpu="A100-40GB", volumes={"/workspace": volume}, timeout=7200)
+@app.function(volumes={"/workspace": volume}, timeout=300)
+def verify_dataset() -> dict:
+    """Exercise the uploaded dataset and video decoder before reserving a GPU."""
+    import json
+    from pathlib import Path
+
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    root = Path(DATASET_ROOT)
+    info = json.loads((root / "meta/info.json").read_text())
+    if int(info["total_episodes"]) != 50 or int(info["fps"]) != 10:
+        raise ValueError("expected the audited 50-episode, 10 Hz mug dataset")
+    dataset = LeRobotDataset("local/aloha-dinner-mug", root=root, video_backend="pyav")
+    sample = dataset[0]
+    for key in ("observation.images.global", "observation.images.left_wrist",
+                "observation.images.right_wrist", "observation.state", "action"):
+        if key not in sample:
+            raise KeyError(f"missing training feature: {key}")
+    if sample["observation.state"].shape != sample["action"].shape or sample["action"].numel() != 14:
+        raise ValueError("ALOHA state and action must each have 14 ordered values")
+    return {"episodes": len(dataset.meta.episodes), "frames": len(dataset),
+            "image_shape": list(sample["observation.images.global"].shape),
+            "state_shape": list(sample["observation.state"].shape),
+            "action_shape": list(sample["action"].shape)}
+
+
+@app.function(gpu="A10G", volumes={"/workspace": volume}, timeout=7200)
 def fine_tune(steps: int = 200) -> str:
     import json
     from pathlib import Path
@@ -68,5 +97,7 @@ def fine_tune(steps: int = 200) -> str:
 
 
 @app.local_entrypoint()
-def main(steps: int = 200) -> None:
-    print(fine_tune.remote(steps))
+def main(steps: int = 200, verify_only: bool = False) -> None:
+    print(verify_dataset.remote())
+    if not verify_only:
+        print(fine_tune.remote(steps))

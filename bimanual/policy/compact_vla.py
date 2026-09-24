@@ -39,6 +39,11 @@ class CompactVLAConfig:
     dropout: float = 0.1
 
     @classmethod
+    def research_160m(cls, state_dim: int = 14, action_dim: int = 14) -> "CompactVLAConfig":
+        return cls(state_dim=state_dim, action_dim=action_dim,
+                   num_layers=15, feedforward_dim=5312)
+
+    @classmethod
     def smoke(cls, state_dim: int = 12, action_dim: int = 12) -> "CompactVLAConfig":
         return cls(
             state_dim=state_dim,

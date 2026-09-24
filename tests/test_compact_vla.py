@@ -42,6 +42,13 @@ def test_flow_matching_loss_backpropagates():
     assert model.flow_output[-1].weight.grad is not None
 
 
+def test_160m_preset_has_bimanual_dimensions_and_parameter_budget():
+    with torch.device('meta'):
+        model = CompactVLA(CompactVLAConfig.research_160m())
+    assert model.config.state_dim == model.config.action_dim == 14
+    assert 159_000_000 <= model.parameter_counts()['total'] <= 161_000_000
+
+
 def test_flow_matching_ignores_padded_actions():
     torch.manual_seed(4)
     model = CompactVLA(CompactVLAConfig.smoke())

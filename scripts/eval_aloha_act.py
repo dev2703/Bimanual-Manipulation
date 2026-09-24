@@ -19,6 +19,8 @@ def main() -> None:
     parser.add_argument("--device", default="mps")
     parser.add_argument("--success-threshold", type=float, default=0.5)
     args = parser.parse_args()
+    if args.episodes < 1:
+        parser.error("--episodes must be positive")
 
     policy, preprocessor, postprocessor = load_act_bundle(args.checkpoint, args.device)
     results = []
@@ -44,11 +46,11 @@ def main() -> None:
             env.close()
         row = {"seed": seed, **result.__dict__}
         results.append(row)
-        print(json.dumps(row, sort_keys=True))
+        print(json.dumps(row, sort_keys=True), flush=True)
 
     successes = sum(item["success"] for item in results)
     rate = successes / len(results)
-    print(json.dumps({"episodes": len(results), "successes": successes, "success_rate": rate}, sort_keys=True))
+    print(json.dumps({"episodes": len(results), "successes": successes, "success_rate": rate}, sort_keys=True), flush=True)
     if rate < args.success_threshold:
         raise SystemExit(1)
 
