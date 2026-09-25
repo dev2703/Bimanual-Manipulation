@@ -47,8 +47,10 @@ def move_arm(
     arm: str,
     phase: str,
     record: list[dict] | None,
+    quaternion: np.ndarray | None = None,
 ) -> None:
-    result = ik.solve(env.data.qpos, {arm: (target, top_down_quaternion())})
+    orientation = top_down_quaternion() if quaternion is None else np.asarray(quaternion, dtype=np.float64)
+    result = ik.solve(env.data.qpos, {arm: (target, orientation)})
     if not result.converged[arm]:
         raise RuntimeError(
             f"ALOHA IK failed: position={result.position_error[arm]:.4f}, "
@@ -61,4 +63,3 @@ def move_arm(
         action[start : start + 6] = joints
         action[start + 6] = gripper
         step_recorded(env, action, arm, phase, record)
-

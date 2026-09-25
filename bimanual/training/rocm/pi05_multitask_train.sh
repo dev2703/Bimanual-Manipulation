@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 5k-step Pi0.5 fine-tune on the merged mug/plate/drawer/block dataset.
+# Run on the droplet after datasets/aloha_multitask_train is synced.
 set -euo pipefail
 python -m pip install -c /opt/rocm-constraints.txt 'lerobot[pi]==0.6.1' 'transformers==5.5.4'
 python - <<'PY'
@@ -16,9 +18,9 @@ lerobot-train \
   --policy.train_expert_only=true --policy.freeze_vision_encoder=true \
   --policy.gradient_checkpointing=true --policy.push_to_hub=false \
   --policy.normalization_mapping='{"VISUAL":"IDENTITY","STATE":"MEAN_STD","ACTION":"MEAN_STD"}' \
-  --dataset.repo_id=local/aloha-dinner-mug \
-  --dataset.root=/workspace/datasets/aloha_mug_train_stable_stats \
+  --dataset.repo_id=local/aloha-multitask \
+  --dataset.root=/workspace/datasets/aloha_multitask_train \
   --dataset.video_backend=pyav --batch_size=4 --num_workers=4 \
-  --steps=200 --save_freq=200 --log_freq=20 --save_checkpoint=true \
-  --output_dir=/workspace/checkpoints/pi05-mug-smoke \
-  --job_name=pi05_mug_rocm_smoke --wandb.enable=false
+  --steps=5000 --save_freq=5000 --log_freq=20 --save_checkpoint=true \
+  --output_dir=/workspace/checkpoints/pi05-multitask-5k \
+  --job_name=pi05_multitask_rocm --wandb.enable=false

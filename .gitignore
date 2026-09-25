@@ -37,6 +37,7 @@ ENV/
 .ruff_cache/
 __pycache__/
 *.py[oc]
+ssh
 
 # Build products and generated experiments.
 build/

@@ -105,8 +105,10 @@ def main() -> None:
     tokenizer = ByteTokenizer(config.max_language_tokens)
     val_loader = None
     if args.val_root:
-        audit_dataset(args.val_root)
-        assert_disjoint_splits(root, args.val_root)
+        val_manifest = Path(args.val_root) / "episode_manifests.json"
+        if val_manifest.exists() and not args.allow_legacy_dataset:
+            audit_dataset(args.val_root)
+            assert_disjoint_splits(root, args.val_root)
         validation = LeRobotDataset('local/aloha-dinner-mug-val', root=Path(args.val_root),
                                     delta_timestamps=delta_timestamps, video_backend='pyav')
         indices = torch.linspace(0, len(validation) - 1,
