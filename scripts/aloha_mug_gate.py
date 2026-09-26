@@ -14,6 +14,7 @@ def main() -> None:
     parser.add_argument("--seed-offset", type=int, default=0)
     parser.add_argument("--threshold", type=float, default=0.90)
     parser.add_argument("--jitter", type=float, default=0.015)
+    parser.add_argument("--grasp-height", type=float, default=0.030)
     args = parser.parse_args()
     successes = 0
     for index in range(args.episodes):
@@ -21,7 +22,7 @@ def main() -> None:
         env = AlohaTableSettingEnv()
         try:
             env.reset(seed=seed, randomize_objects=True, position_jitter=args.jitter)
-            result = run_mug_pick_place(env)
+            result = run_mug_pick_place(env, grasp_height=args.grasp_height)
             successes += int(result.success)
             print(
                 f"seed={seed} success={result.success} "

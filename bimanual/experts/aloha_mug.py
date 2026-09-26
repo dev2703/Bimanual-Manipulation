@@ -24,8 +24,13 @@ class AlohaMugResult:
     record: list[dict]
 
 
-def run_mug_pick_place(env: AlohaTableSettingEnv, record_frames: bool = False) -> AlohaMugResult:
-    """Place the mug to the right of the plate using only joint/gripper control."""
+def run_mug_pick_place(
+    env: AlohaTableSettingEnv, record_frames: bool = False, grasp_height: float = 0.030,
+) -> AlohaMugResult:
+    """Place the mug to the right of the plate using only joint/gripper control.
+
+    `grasp_height` is the pre-grasp gripper-site target above the mug origin.
+    """
     arm = "right"
     gripper_index = 13
     record: list[dict] | None = [] if record_frames else None
@@ -35,7 +40,7 @@ def run_mug_pick_place(env: AlohaTableSettingEnv, record_frames: bool = False) -
 
     move_arm(env, ik, initial + [0, 0, 0.18], OPEN, 50, arm, "APPROACH", record)
     # Grip low enough to carry laterally, but above the table contact plane.
-    move_arm(env, ik, initial + [0, 0, 0.030], OPEN, 50, arm, "PRE_GRASP", record)
+    move_arm(env, ik, initial + [0, 0, grasp_height], OPEN, 50, arm, "PRE_GRASP", record)
     for _ in range(100):
         action = env.data.ctrl.copy()
         action[gripper_index] = CLOSED
