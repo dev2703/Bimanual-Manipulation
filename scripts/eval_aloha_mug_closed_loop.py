@@ -17,13 +17,20 @@ from bimanual.sim.aloha_env import AlohaTableSettingEnv
 POLICIES = ("smolvla", "compact_160m", "pi05")
 
 
-def run_policy(name: str, checkpoint: str, episodes: int, seed_offset: int, device: str, max_policy_steps: int) -> list[dict]:
+def run_policy(
+    name: str, checkpoint: str, episodes: int, seed_offset: int, device: str, max_policy_steps: int,
+    prefix: int | None = None,
+) -> list[dict]:
     if name == "smolvla":
         policy, preprocessor, postprocessor = load_smolvla_bundle(checkpoint, device)
     elif name == "compact_160m":
         policy, preprocessor, postprocessor = load_compact_bundle(checkpoint, device)
     else:
         policy, preprocessor, postprocessor = load_pi05_bundle(checkpoint, device)
+    if prefix is not None and name != "compact_160m":
+        if not 1 <= prefix <= policy.config.chunk_size:
+            raise ValueError(f"prefix {prefix} outside 1..{policy.config.chunk_size}")
+        policy.config.n_action_steps = prefix
 
     results = []
     for index in range(episodes):
@@ -48,7 +55,8 @@ def run_policy(name: str, checkpoint: str, episodes: int, seed_offset: int, devi
                 )
         finally:
             env.close()
-        row = {"policy": name, "seed": seed, **result.__dict__}
+        row = {"policy": name, "seed": seed, "prefix": getattr(getattr(policy, "config", None), "n_action_steps", 1),
+               **result.__dict__}
         results.append(row)
         print(json.dumps(row, sort_keys=True), flush=True)
     return results
@@ -56,9 +64,11 @@ def run_policy(name: str, checkpoint: str, episodes: int, seed_offset: int, devi
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--smolvla-checkpoint", required=True)
-    parser.add_argument("--compact-checkpoint", required=True)
+    parser.add_argument("--smolvla-checkpoint")
+    parser.add_argument("--compact-checkpoint")
     parser.add_argument("--pi05-checkpoint")
+    parser.add_argument("--prefix", type=int,
+                        help="override the executed chunk prefix for SmolVLA/Pi0.5 (compact always executes 1)")
     parser.add_argument("--episodes", type=int, default=20)
     parser.add_argument("--seed-offset", type=int, default=200_000)
     parser.add_argument("--max-policy-steps", type=int, default=240)
@@ -73,11 +83,15 @@ def main() -> None:
         "compact_160m": args.compact_checkpoint,
         "pi05": args.pi05_checkpoint,
     }
-    policies = POLICIES if args.pi05_checkpoint else POLICIES[:-1]
-    summary = {"metric": "closed-loop MuJoCo task success", "episodes_per_policy": args.episodes}
+    policies = [name for name in POLICIES if checkpoints[name]]
+    if not policies:
+        parser.error("provide at least one checkpoint")
+    summary = {"metric": "closed-loop MuJoCo task success", "episodes_per_policy": args.episodes,
+               "seed_offset": args.seed_offset, "prefix_override": args.prefix}
     all_rows = []
     for name in policies:
-        rows = run_policy(name, checkpoints[name], args.episodes, args.seed_offset, args.device, args.max_policy_steps)
+        rows = run_policy(name, checkpoints[name], args.episodes, args.seed_offset, args.device,
+                          args.max_policy_steps, args.prefix)
         all_rows.extend(rows)
         successes = sum(row["success"] for row in rows)
         summary[name] = {"successes": successes, "success_rate": successes / len(rows)}
