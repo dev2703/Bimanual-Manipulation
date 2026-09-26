@@ -185,6 +185,9 @@ class CompactVLA(nn.Module):
         if flow_time is None:
             flow_time = torch.zeros(state.shape[0], 1, device=state.device, dtype=state.dtype)
         actions = self.predict_velocity(latent, noisy_actions, flow_time)
+        return self._heads(latent, actions)
+
+    def _heads(self, latent: torch.Tensor, actions: torch.Tensor) -> PolicyOutput:
         return PolicyOutput(
             actions=actions,
             phase_logits=self.phase_head(latent),
@@ -205,6 +208,28 @@ class CompactVLA(nn.Module):
         action_is_pad: torch.Tensor | None = None,
     ) -> torch.Tensor:
         _tokens, latent = self._encode(images, state, language_tokens, context)
+        return self._flow_loss(latent, target_actions, action_is_pad)
+
+    def flow_and_heads(
+        self,
+        images: torch.Tensor,
+        state: torch.Tensor,
+        language_tokens: torch.Tensor,
+        target_actions: torch.Tensor,
+        context: torch.Tensor | None = None,
+        action_is_pad: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, PolicyOutput]:
+        """Flow loss and auxiliary head outputs from one shared encoding."""
+        _tokens, latent = self._encode(images, state, language_tokens, context)
+        loss = self._flow_loss(latent, target_actions, action_is_pad)
+        return loss, self._heads(latent, target_actions)
+
+    def _flow_loss(
+        self,
+        latent: torch.Tensor,
+        target_actions: torch.Tensor,
+        action_is_pad: torch.Tensor | None,
+    ) -> torch.Tensor:
         noise = torch.randn_like(target_actions)
         time = torch.rand(target_actions.shape[0], 1, device=target_actions.device)
         interpolated = (1 - time[:, :, None]) * noise + time[:, :, None] * target_actions
