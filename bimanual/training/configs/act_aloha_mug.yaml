@@ -29,7 +29,7 @@ policy:
   device: mps
   push_to_hub: false
   chunk_size: 20
-  n_action_steps: 8
+  n_action_steps: 20
   # The left arm is stationary in this atomic skill. Mean/std statistics for
   # constant joints can have a few micro-units of rounding error and zero std,
   # which explodes normalized targets. Bounded min/max avoids that failure.

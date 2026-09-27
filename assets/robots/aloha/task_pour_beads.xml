@@ -1,0 +1,13 @@
+<!-- Dinner scene plus six free beads above the bottle. Bead transfer is counted
+     separately from the geometric pour pose. -->
+<mujoco model="aloha_pour_beads">
+  <include file="task_table_setting.xml"/>
+  <worldbody>
+    <body name="bead_0" pos="-.30 .12 .14"><freejoint/><geom name="bead_0" type="sphere" size=".006" mass=".001" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+    <body name="bead_1" pos="-.28 .12 .14"><freejoint/><geom name="bead_1" type="sphere" size=".006" mass=".001" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+    <body name="bead_2" pos="-.32 .12 .14"><freejoint/><geom name="bead_2" type="sphere" size=".006" mass=".001" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+    <body name="bead_3" pos="-.30 .14 .15"><freejoint/><geom name="bead_3" type="sphere" size=".006" mass=".001" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+    <body name="bead_4" pos="-.30 .10 .15"><freejoint/><geom name="bead_4" type="sphere" size=".006" mass=".001" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+    <body name="bead_5" pos="-.30 .12 .17"><freejoint/><geom name="bead_5" type="sphere" size=".006" mass=".001" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+  </worldbody>
+</mujoco>

@@ -14,13 +14,10 @@ from bimanual.evaluation.aloha_contacts import right_gripper_touches_drawer_hand
 from bimanual.evaluation.aloha_predicates import drawer_opened, mug_placed, plate_placed
 from bimanual.sim.aloha_env import TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
 from bimanual.sim.perturbation import move_ungrasped_object
+from bimanual.skills.registry import SKILLS
 
-SCENES = {
-    "mug_pick_place": "task_table_setting.xml",
-    "plate_pick_place": "task_table_setting_plate_v2.xml",
-    "plate_recovery": "task_table_setting_plate_v2.xml",
-    "drawer_open": "task_table_setting_drawer_v2.xml",
-}
+REPLAYABLE = ("mug_pick_place", "plate_pick_place", "plate_recovery", "drawer_open")
+SCENES = {name: SKILLS[name].scene_name for name in REPLAYABLE}
 
 
 @dataclass(frozen=True)

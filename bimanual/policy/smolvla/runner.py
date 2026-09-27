@@ -11,7 +11,7 @@ from bimanual.sim.aloha_env import AlohaTableSettingEnv
 MUG_INSTRUCTION = "Set the dinner table: place the blue mug to the right of the plate."
 
 
-def load_smolvla_bundle(checkpoint: str | Path, device: str = "mps") -> tuple[Any, Any, Any]:
+def load_smolvla_bundle(checkpoint: str | Path, device: str = "mps", prefix: int | None = None) -> tuple[Any, Any, Any]:
     """Load weights and their saved tokenization/normalization processors."""
     from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
     from lerobot.processor import PolicyProcessorPipeline
@@ -29,8 +29,10 @@ def load_smolvla_bundle(checkpoint: str | Path, device: str = "mps") -> tuple[An
         overrides=overrides, to_transition=policy_action_to_transition,
         to_output=transition_to_policy_action,
     )
-    if policy.config.chunk_size != 20 or policy.config.n_action_steps != 8:
-        raise ValueError("dinner SmolVLA checkpoint must declare chunk 20 / prefix 8")
+    if prefix is not None:
+        if not 1 <= prefix <= policy.config.chunk_size:
+            raise ValueError(f"prefix {prefix} outside 1..{policy.config.chunk_size}")
+        policy.config.n_action_steps = prefix
     return policy, preprocessor, postprocessor
 
 

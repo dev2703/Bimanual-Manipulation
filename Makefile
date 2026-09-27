@@ -1,4 +1,4 @@
-.PHONY: setup test demo gen-data mug-gate mug-demo audit-mug replay-mug plate-gate plate-demo audit-plate replay-plate drawer-gate drawer-demo audit-drawer replay-drawer clean
+.PHONY: setup test demo gen-data mug-gate mug-demo audit-mug replay-mug plate-gate plate-demo audit-plate replay-plate drawer-gate drawer-demo audit-drawer replay-drawer verify-data clean
 
 UV := uv
 
@@ -9,10 +9,10 @@ test:
 	$(UV) run pytest tests -q
 
 demo:
-	$(UV) run python scripts/smoke_render.py
+	$(UV) run python scripts/render_aloha_expert.py --task combined --seed 0
 
 gen-data:
-	$(UV) run python -m bimanual.experts.generate
+	$(UV) run python -m bimanual.experts.generate_aloha_table --skill mug_pick_place --episodes 1 --root outputs/aloha_gen_data_smoke --overwrite
 
 mug-gate:
 	$(UV) run python scripts/aloha_mug_gate.py --episodes 50
@@ -50,5 +50,19 @@ audit-drawer:
 replay-drawer:
 	$(UV) run python -m bimanual.data.replay_aloha_table outputs/aloha_drawer_train --skill drawer_open
 
+verify-data:
+	$(UV) run python -m bimanual.data.verify_index
+
+SKILL ?= mug_pick_place
+EPISODES ?= 10
+gate:
+	$(UV) run python scripts/gate.py --skill $(SKILL) --episodes $(EPISODES)
+
+audit:
+	$(UV) run python -m bimanual.data.audit outputs/aloha_$$($(UV) run python -c "from bimanual.skills.registry import get_skill; print(get_skill('$(SKILL)').bucket)")_train
+
+replay:
+	$(UV) run python -m bimanual.data.replay_aloha_table outputs/aloha_$$($(UV) run python -c "from bimanual.skills.registry import get_skill; print(get_skill('$(SKILL)').bucket)")_train --skill $(SKILL)
+
 clean:
-	rm -rf .pytest_cache **/__pycache__ outputs/*.mp4
+	rm -rf .pytest_cache **/__pycache__ scripts/__pycache__ outputs/*.mp4 outputs/*_smoke outputs/*_smoke.log

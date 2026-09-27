@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from bimanual.control.ik import BimanualIK
-from bimanual.experts.table_setting import run_full_episode
-from bimanual.sim.env import BimanualTableEnv, ResetOptions
-from bimanual.sim.randomization import sample_scene_config
+from bimanual.legacy_so101.control.ik import BimanualIK
+from bimanual.legacy_so101.experts.table_setting import run_full_episode
+from bimanual.legacy_so101.sim.env import BimanualTableEnv, ResetOptions
+from bimanual.legacy_so101.sim.randomization import sample_scene_config
 
 N_SEEDS = 50
 

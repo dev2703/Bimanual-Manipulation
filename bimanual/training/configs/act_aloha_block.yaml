@@ -30,7 +30,7 @@ policy:
   device: mps
   push_to_hub: false
   chunk_size: 20
-  n_action_steps: 8
+  n_action_steps: 20
   optimizer_lr: 0.0001
   optimizer_lr_backbone: 0.00001
 

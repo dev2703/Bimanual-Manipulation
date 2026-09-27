@@ -13,7 +13,7 @@ PY
 lerobot-train \
   --policy.type=pi05 --policy.pretrained_path=lerobot/pi05_base \
   --policy.device=cuda --policy.dtype=bfloat16 \
-  --policy.chunk_size=20 --policy.n_action_steps=8 \
+  --policy.chunk_size=20 --policy.n_action_steps=20 \
   --policy.train_expert_only=true --policy.freeze_vision_encoder=true \
   --policy.gradient_checkpointing=true --policy.push_to_hub=false \
   --policy.normalization_mapping='{"VISUAL":"IDENTITY","STATE":"MEAN_STD","ACTION":"MEAN_STD"}' \

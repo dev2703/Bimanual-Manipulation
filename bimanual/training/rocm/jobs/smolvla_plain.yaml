@@ -1,0 +1,9 @@
+name: smolvla_plain
+policy: smolvla
+instruction: plain
+steps: 20000
+chunk_size: 20
+n_action_steps: 20
+dataset: bimanual-multitask
+smoke_steps: 20
+notes: SmolVLA fine-tune with the original skill sentence, not memory serialization.

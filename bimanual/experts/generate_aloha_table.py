@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 import shutil
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import pyarrow as pa
@@ -15,47 +13,13 @@ import pyarrow.dataset as ds
 
 from bimanual.data.audit import audit_dataset
 from bimanual.data.scene_artifacts import scene_artifact_hashes
-from bimanual.experts.aloha_drawer import run_drawer_open
-from bimanual.experts.aloha_mug import run_mug_pick_place
 from bimanual.experts.aloha_plate import run_plate_pick_place
 from bimanual.experts.generate_aloha import IMAGE_MAP
 from bimanual.policy.types import EpisodeManifest
 from bimanual.sim.aloha_env import ALOHA_BIMANUAL, TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
+from bimanual.skills.registry import SKILLS, Skill as TableSkill
 
 OBJECT_NAMES = tuple(TABLE_SETTING_OBJECTS)
-
-
-@dataclass(frozen=True)
-class TableSkill:
-    bucket: str
-    scene_name: str
-    instruction: str
-    source_expert: str
-    run: Callable
-
-
-SKILLS = {
-    "mug_pick_place": TableSkill(
-        "mug", "task_table_setting.xml",
-        "Set the dinner table: place the blue mug to the right of the plate.",
-        "aloha_contact_mug_v1", run_mug_pick_place,
-    ),
-    "plate_pick_place": TableSkill(
-        "plate", "task_table_setting_plate_v2.xml",
-        "Set the dinner table: place the serving plate in the centre.",
-        "aloha_contact_plate_v2", run_plate_pick_place,
-    ),
-    "plate_recovery": TableSkill(
-        "plate_recovery", "task_table_setting_plate_v2.xml",
-        "Set the dinner table: place the serving plate in the centre.",
-        "aloha_contact_plate_moved_recovery_v1", run_plate_pick_place,
-    ),
-    "drawer_open": TableSkill(
-        "drawer", "task_table_setting_drawer_v2.xml",
-        "Open the top drawer of the dinner cabinet.",
-        "aloha_contact_drawer_v2", run_drawer_open,
-    ),
-}
 
 
 def _manifest(skill: TableSkill, seed: int, split: str, hashes: dict[str, str]) -> dict:

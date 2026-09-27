@@ -29,7 +29,7 @@ def test_episode_manifest_is_serializable_and_records_rates():
 
 
 def test_dataset_schema_contains_auditable_sim_time():
-    from bimanual.experts.generate import make_features
+    from bimanual.legacy_so101.experts.generate import make_features
 
     assert "privileged.sim_time" in make_features()
 

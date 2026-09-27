@@ -66,7 +66,7 @@ def load_policy(kind: str, checkpoint: str, device: str):
     if kind == "smolvla":
         from bimanual.policy.smolvla.runner import MUG_INSTRUCTION, load_smolvla_bundle
         return (*load_smolvla_bundle(checkpoint, device), MUG_INSTRUCTION)
-    from bimanual.policy.act_runner import load_act_bundle
+    from bimanual.policy.lerobot_io import load_act_bundle
     return (*load_act_bundle(checkpoint, device), None)
 
 

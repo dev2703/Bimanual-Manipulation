@@ -77,6 +77,12 @@
     <body name="bottle" pos="-.30 .12 .045"><freejoint name="bottle_free"/><geom name="bottle_body" class="tableware" type="cylinder" size=".026 .045" mass=".05" material="glass"/><geom name="bottle_neck" class="tableware" type="cylinder" pos="0 0 .063" size=".013 .018" mass=".008" material="glass"/></body>
     <body name="fork" pos="-.10 .355 .077"><freejoint name="fork_free"/><geom name="fork_handle" class="tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".016" material="steel"/><geom name="fork_head" class="tableware" type="box" pos="0 .058 0" size=".017 .017 .005" mass=".005" material="steel"/></body>
     <body name="spoon" pos=".10 .355 .077"><freejoint name="spoon_free"/><geom name="spoon_handle" class="tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".016" material="steel"/><geom name="spoon_bowl" class="tableware" type="ellipsoid" pos="0 .064 0" size=".017 .025 .006" mass=".005" material="steel"/></body>
+    <body name="task_block" pos="0 .16 .02">
+      <freejoint name="task_block_free"/>
+      <geom name="handoff_baton" type="box" size="0.022 0.012 0.012" mass="0.02" condim="6" friction="2.0 0.02 0.002" solref="0.01 1" rgba="0.62 0.34 0.15 1"/>
+      <geom name="handoff_baton_neck" type="capsule" fromto="0.028 0 0 0.056 0 0" size="0.008" mass="0.004" condim="6" friction="4.0 0.02 0.002" solref="0.01 1" rgba="0.45 0.24 0.10 1"/>
+      <geom name="handoff_baton_neck_2" type="capsule" fromto="-0.056 0 0 -0.028 0 0" size="0.008" mass="0.004" condim="6" friction="4.0 0.02 0.002" solref="0.01 1" rgba="0.45 0.24 0.10 1"/>
+    </body>
 
     <!-- Subtle final-layout guides, audience-only. -->
     <site name="plate_region" type="cylinder" pos="0 -.105 .009" size=".065 .001" material="region" group="5"/>

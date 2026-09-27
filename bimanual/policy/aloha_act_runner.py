@@ -8,9 +8,9 @@ from typing import Any, Callable
 import numpy as np
 import torch
 
-from bimanual.policy.act_runner import _frame_to_batch_image
-from bimanual.evaluation.aloha_predicates import mug_placed
+from bimanual.policy.lerobot_io import frame_to_batch_image as _frame_to_batch_image
 from bimanual.sim.aloha_env import ALOHA_BIMANUAL, CONTROL_HZ, AlohaPhysicalEnv, AlohaTableSettingEnv
+from bimanual.skills.registry import Skill, get_skill
 
 POLICY_HZ = ALOHA_BIMANUAL.policy_hz
 CONTROL_STEPS_PER_ACTION = CONTROL_HZ // POLICY_HZ
@@ -52,26 +52,24 @@ def run_aloha_act_episode(
     lift_threshold: float = 0.08,
     retain_steps: int = 5,
     task: str = "block_lift",
+    skill: Skill | None = None,
     instruction: str | None = None,
     after_control_step: Callable[[], None] | None = None,
 ) -> AlohaRolloutResult:
-    """Execute ACT at 10 Hz while stepping the ALOHA controller at 30 Hz."""
+    """Execute a policy at 10 Hz while stepping the ALOHA controller at 30 Hz."""
     if CONTROL_HZ % POLICY_HZ:
         raise ValueError("control frequency must be divisible by policy frequency")
-    if task not in {"block_lift", "mug_pick_place"}:
-        raise ValueError(f"unsupported ALOHA task {task!r}")
-    if task == "mug_pick_place" and not isinstance(env, AlohaTableSettingEnv):
+    skill = skill or get_skill(task)
+    if skill.name == "mug_pick_place" and not isinstance(env, AlohaTableSettingEnv):
         raise TypeError("mug_pick_place requires AlohaTableSettingEnv")
     if instruction is not None and preprocessor is None:
         raise ValueError("language-conditioned inference requires the saved preprocessor")
     policy.reset()
-    object_key = "mug_pos" if task == "mug_pick_place" else "task_block_pos"
-    initial_position = env.oracle_state()[object_key].copy()
-    initial_height = float(initial_position[2])
-    target = env.data.site_xpos[env.model.site("mug_region").id].copy() if task == "mug_pick_place" else None
-    peak_height = initial_height
+    state = skill.begin(env)
+    # Callers can still tighten the block lift threshold without a new skill.
+    if skill.check is None:
+        state.initial_height = float(state.initial[2])
     retained = 0
-    carried_to_target = False
     for policy_step in range(1, max_policy_steps + 1):
         raw = _raw_observation(env, device, instruction)
         batch = preprocessor(raw) if preprocessor is not None else {k: v.unsqueeze(0) for k, v in raw.items()}
@@ -85,35 +83,21 @@ def run_aloha_act_episode(
             env.step(action_np)
             if after_control_step is not None:
                 after_control_step()
-        position = env.oracle_state()[object_key]
-        height = float(position[2])
-        peak_height = max(peak_height, height)
-        if task == "mug_pick_place":
-            assert target is not None and isinstance(env, AlohaTableSettingEnv)
-            carried_to_target |= bool(
-                height > initial_height + 0.08
-                and np.linalg.norm(position[:2] - target[:2]) < 0.05
-            )
-            successful_now = mug_placed(
-                initial_position, position, target,
-                peak_height=peak_height,
-                carried_to_target=carried_to_target,
-                upright_cosine=env.mug_upright_cosine(),
-                gripper_opening=float(env.state_vector()[13]),
-            )
+        skill.update(env, state)
+        if skill.check is None:
+            successful_now = float(state.position[2]) >= float(state.initial[2]) + lift_threshold
         else:
-            successful_now = height >= initial_height + lift_threshold
+            successful_now = skill.succeeded(env, state)
         retained = retained + 1 if successful_now else 0
+        xy_error = None if state.target is None else float(np.linalg.norm(state.position[:2] - state.target[:2]))
         if retained >= retain_steps:
             return AlohaRolloutResult(
                 True, policy_step, policy_step * CONTROL_STEPS_PER_ACTION,
-                initial_height, peak_height, height, task,
-                float(np.linalg.norm(position[:2] - target[:2])) if target is not None else None,
+                float(state.initial[2]), state.peak_height, float(state.position[2]), skill.name,
+                xy_error,
             )
-    position = env.oracle_state()[object_key]
-    height = float(position[2])
     return AlohaRolloutResult(
         False, max_policy_steps, max_policy_steps * CONTROL_STEPS_PER_ACTION,
-        initial_height, peak_height, height, task,
-        float(np.linalg.norm(position[:2] - target[:2])) if target is not None else None,
+        float(state.initial[2]), state.peak_height, float(state.position[2]), skill.name,
+        None if state.target is None else float(np.linalg.norm(state.position[:2] - state.target[:2])),
     )

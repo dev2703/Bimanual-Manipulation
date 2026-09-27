@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from bimanual.policy.act_runner import load_act_bundle
+from bimanual.policy.lerobot_io import load_act_bundle
 from bimanual.policy.aloha_act_runner import run_aloha_act_episode
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 

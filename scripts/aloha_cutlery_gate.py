@@ -33,8 +33,20 @@ def main() -> None:
         print(json.dumps({"seed": seed, "drawer": drawer.success, "fork": fork.success,
                           "spoon": spoon.success, "success": success}), flush=True)
     rate = successes / args.episodes
-    print(json.dumps({"episodes": args.episodes, "successes": successes, "success_rate": rate}))
-    if rate < 0.9:
+    report = {
+        "skill": "cutlery",
+        "episodes": args.episodes,
+        "successes": successes,
+        "success_rate": rate,
+        "threshold": 0.9,
+        "passed": rate >= 0.9,
+        "seed_offset": args.seed_offset,
+    }
+    out = Path("outputs/gates")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "cutlery.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps(report))
+    if not report["passed"]:
         raise SystemExit("cutlery gate is below 90%")
 
 

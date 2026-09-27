@@ -12,7 +12,7 @@ from bimanual.sim.aloha_env import AlohaTableSettingEnv
 def test_dinner_act_uses_bounded_action_normalization():
     config = Path(__file__).parents[1] / "bimanual/training/configs/act_aloha_mug.yaml"
     policy = yaml.safe_load(config.read_text())["policy"]
-    assert policy["chunk_size"] == 20 and policy["n_action_steps"] == 8
+    assert policy["chunk_size"] == 20 and policy["n_action_steps"] == 20
     assert policy["normalization_mapping"]["ACTION"] == "MIN_MAX"
     assert policy["normalization_mapping"]["STATE"] == "MIN_MAX"
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import mujoco.viewer
 
-from bimanual.sim.env import BimanualTableEnv
+from bimanual.legacy_so101.sim.env import BimanualTableEnv
 
 
 def main() -> None:

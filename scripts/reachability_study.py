@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from bimanual.sim import robot_spec as rs
-from bimanual.sim.env import BimanualTableEnv
-from bimanual.sim.scene_builder import CABINET_POS, REGIONS, TABLE_HEIGHT
+from bimanual.legacy_so101.sim import robot_spec as rs
+from bimanual.legacy_so101.sim.env import BimanualTableEnv
+from bimanual.legacy_so101.sim.scene_builder import CABINET_POS, REGIONS, TABLE_HEIGHT
 
 N_SAMPLES = 4000
 TOLERANCE = 0.05  # meters

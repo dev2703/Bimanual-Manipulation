@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from bimanual.sim import robot_spec as rs
-
 
 def min_jerk_scaling(t: np.ndarray) -> np.ndarray:
     """Standard 10t^3 - 15t^4 + 6t^5 min-jerk time-scaling, t in [0, 1]."""
@@ -49,11 +47,13 @@ def gripper_profile(n_steps: int, open_at_start: bool, hold_frac: float = 0.3) -
 
 def gripper_fraction_to_qpos(fraction: np.ndarray | float) -> np.ndarray | float:
     """Maps a [0, 1] "how open" fraction (1=open, 0=closed) to the real
-    gripper joint's qpos, using rs.GRIPPER_OPEN/GRIPPER_CLOSED rather than
+    gripper joint's qpos, using the SO-101 gripper limits rather than
     raw lo/hi -- the vendored joint's numeric range order is the OPPOSITE
     of open/closed (verified by rendering both extremes, docs/decisions.md
     Phase 3 notes; an earlier version of this function used lo/hi directly
     and silently commanded the wrong gripper state everywhere)."""
+    from bimanual.legacy_so101.sim import robot_spec as rs
+
     open_q, closed_q = rs.GRIPPER_OPEN, rs.GRIPPER_CLOSED
     clipped = np.clip(np.asarray(fraction, dtype=np.float64), 0.0, 1.0)
     result = closed_q + clipped * (open_q - closed_q)

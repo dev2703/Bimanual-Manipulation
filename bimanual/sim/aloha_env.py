@@ -161,6 +161,9 @@ class AlohaTableSettingEnv(AlohaPhysicalEnv):
         state["drawer_opening"] = np.asarray(
             [self.data.qpos[self.model.joint("drawer_slide").qposadr[0]]], dtype=np.float64,
         )
+        baton = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "task_block")
+        if baton >= 0:
+            state["task_block_pos"] = self.data.xpos[baton].copy()
         return state
 
     def object_upright_cosine(self, name: str) -> float:

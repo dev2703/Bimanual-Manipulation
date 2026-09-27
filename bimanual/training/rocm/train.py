@@ -63,7 +63,7 @@ def main():
         # merges with the base config and retains its unused camera names.
         '--policy.input_features=null',
         '--policy.device=cuda', '--policy.chunk_size=20',
-        '--policy.n_action_steps=8', '--policy.train_expert_only=true',
+        '--policy.n_action_steps=20', '--policy.train_expert_only=true',
         '--policy.push_to_hub=false',
         '--dataset.repo_id=local/aloha-dinner-mug', f'--dataset.root={root}',
         '--dataset.video_backend=pyav', '--batch_size=8', '--num_workers=4',
