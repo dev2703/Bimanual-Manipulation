@@ -215,13 +215,21 @@ def run_pour_pose(env: AlohaTableSettingEnv, record_frames: bool = False) -> Alo
     mug_site = env.data.site_xpos[env.model.site("right/gripper").id].copy()
     move_arm(env, ik, mug_site + [0, 0, 0.14], CLOSED, 80, "right", "MUG_LIFT", record)
     # Stow the mug on the right, clear of the left arm's bottle pickup.
-    anchor = np.array([0.11, 0.11, 0.20])
+    # An open drawer occupies the original carry corridor. Keep the mug's
+    # bottom above its front and lift the bottle before translating across it.
+    drawer_open = float(env.oracle_state()["drawer_opening"][0]) > 0.11
+    anchor = np.array([0.11, 0.11, 0.23 if drawer_open else 0.20])
     move_arm(env, ik, anchor, CLOSED, 80, "right", "MUG_PRESENT", record)
     mug_pinch = float(env.state_vector()[13])
 
     _grasp(env, ik, "bottle", "left", 6, 0.035, record)
+    if drawer_open:
+        bottle_site = env.data.site_xpos[env.model.site("left/gripper").id].copy()
+        move_arm(env, ik, bottle_site + [0, 0, 0.16], CLOSED, 80,
+                 "left", "BOTTLE_LIFT", record)
     try:
-        _carry(env, ik, "left", "bottle", np.array([-0.10, 0.08, 0.16]), record, "BOTTLE_PARK")
+        _carry(env, ik, "left", "bottle",
+               np.array([-0.10, 0.08, 0.20 if drawer_open else 0.16]), record, "BOTTLE_PARK")
     except RuntimeError:
         pass
     _pitch_left(env, -1.05, record, release=False)
