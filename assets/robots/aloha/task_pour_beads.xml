@@ -3,10 +3,12 @@
   <include file="scene.xml"/>
   <asset><material name="bead_ceramic" rgba=".12 .35 .43 1"/><material name="bead_glass" rgba=".15 .48 .53 .78"/></asset>
   <default>
-    <default class="bead_tableware"><geom condim="6" friction="3 .03 .002" solref=".006 1" solimp=".95 .99 .001"/></default>
-    <default class="container_wall"><geom type="capsule" size=".005" mass=".0015" rgba=".15 .48 .53 .45" condim="6" friction="5 .05 .01" solref=".004 1" solimp=".96 .995 .001"/></default>
+    <default class="bead_tableware"><geom contype="4" conaffinity="3" condim="6" friction="3 .03 .002" solref=".02 1" solimp=".9 .95 .001"/></default>
+    <default class="container_wall"><geom type="capsule" size=".005" mass=".0015" rgba=".15 .48 .53 .45" contype="4" conaffinity="3" condim="6" friction=".1 .001 .0001" solref=".02 1" solimp=".9 .95 .001"/></default>
   </default>
   <worldbody>
+    <!-- Beads ignore detailed robot meshes but still settle on this table. -->
+    <geom name="bead_table" type="box" pos="0 0 -.004" size=".61 .37 .004" contype="4" conaffinity="2" rgba="0 0 0 0"/>
     <body name="cabinet" pos="0 .43 .105"><body name="top_drawer"><joint name="drawer_slide" type="slide" axis="0 -1 0" range="0 .16"/><geom type="box" size=".001 .001 .001" mass=".001" contype="0" conaffinity="0" rgba="0 0 0 0"/></body></body>
     <body name="plate" pos=".15 -.02 .007"><freejoint name="plate_free"/><geom name="plate_geom" class="bead_tableware" type="cylinder" size=".055 .007" mass=".06"/></body>
     <body name="mug" pos=".30 .12 .030">
@@ -32,19 +34,19 @@
       <!-- The proxy bottle holds a small charge near its shoulder so a
            realistic partial tilt can discharge it instead of requiring an
            upside-down arm pose. -->
-      <geom name="bottle_false_bottom" class="bead_tableware" type="cylinder" pos="0 0 .028" size=".018 .004" mass=".004" material="bead_glass"/>
-      <geom name="bottle_wall_00" class="container_wall" fromto=".023 0 -.040 .023 0 .040"/><geom name="bottle_wall_01" class="container_wall" fromto=".01992 .0115 -.040 .01992 .0115 .040"/>
-      <geom name="bottle_wall_02" class="container_wall" fromto=".0115 .01992 -.040 .0115 .01992 .040"/><geom name="bottle_wall_03" class="container_wall" fromto="0 .023 -.040 0 .023 .040"/>
-      <geom name="bottle_wall_04" class="container_wall" fromto="-.0115 .01992 -.040 -.0115 .01992 .040"/><geom name="bottle_wall_05" class="container_wall" fromto="-.01992 .0115 -.040 -.01992 .0115 .040"/>
-      <geom name="bottle_wall_06" class="container_wall" fromto="-.023 0 -.040 -.023 0 .040"/><geom name="bottle_wall_07" class="container_wall" fromto="-.01992 -.0115 -.040 -.01992 -.0115 .040"/>
-      <geom name="bottle_wall_08" class="container_wall" fromto="-.0115 -.01992 -.040 -.0115 -.01992 .040"/><geom name="bottle_wall_09" class="container_wall" fromto="0 -.023 -.040 0 -.023 .040"/>
-      <geom name="bottle_wall_10" class="container_wall" fromto=".0115 -.01992 -.040 .0115 -.01992 .040"/><geom name="bottle_wall_11" class="container_wall" fromto=".01992 -.0115 -.040 .01992 -.0115 .040"/>
+      <geom name="bottle_false_bottom" class="bead_tableware" type="cylinder" pos="0 0 .024" size=".018 .004" mass=".004" material="bead_glass"/>
+      <geom name="bottle_wall_00" class="container_wall" fromto=".023 0 -.040 .023 0 .025"/><geom name="bottle_wall_01" class="container_wall" fromto=".01992 .0115 -.040 .01992 .0115 .025"/>
+      <geom name="bottle_wall_02" class="container_wall" fromto=".0115 .01992 -.040 .0115 .01992 .025"/><geom name="bottle_wall_03" class="container_wall" fromto="0 .023 -.040 0 .023 .025"/>
+      <geom name="bottle_wall_04" class="container_wall" fromto="-.0115 .01992 -.040 -.0115 .01992 .025"/><geom name="bottle_wall_05" class="container_wall" fromto="-.01992 .0115 -.040 -.01992 .0115 .025"/>
+      <geom name="bottle_wall_06" class="container_wall" fromto="-.023 0 -.040 -.023 0 .025"/><geom name="bottle_wall_07" class="container_wall" fromto="-.01992 -.0115 -.040 -.01992 -.0115 .025"/>
+      <geom name="bottle_wall_08" class="container_wall" fromto="-.0115 -.01992 -.040 -.0115 -.01992 .025"/><geom name="bottle_wall_09" class="container_wall" fromto="0 -.023 -.040 0 -.023 .025"/>
+      <geom name="bottle_wall_10" class="container_wall" fromto=".0115 -.01992 -.040 .0115 -.01992 .025"/><geom name="bottle_wall_11" class="container_wall" fromto=".01992 -.0115 -.040 .01992 -.0115 .025"/>
       <!-- A hollow square collar gives the parallel jaws flat load-bearing
            faces, so wrist rotation tips the container without pinning beads. -->
-      <geom name="bottle_grip_xp" class="bead_tableware" type="box" pos=".023 0 .032" size=".004 .023 .012" mass=".002" material="bead_glass"/>
-      <geom name="bottle_grip_xn" class="bead_tableware" type="box" pos="-.023 0 .032" size=".004 .023 .012" mass=".002" material="bead_glass"/>
-      <geom name="bottle_grip_yp" class="bead_tableware" type="box" pos="0 .023 .032" size=".019 .004 .012" mass=".002" material="bead_glass"/>
-      <geom name="bottle_grip_yn" class="bead_tableware" type="box" pos="0 -.023 .032" size=".019 .004 .012" mass=".002" material="bead_glass"/>
+      <geom name="bottle_grip_xp" type="box" pos=".023 0 .032" size=".004 .023 .012" mass=".002" material="bead_glass" condim="6" friction="5 .05 .01"/>
+      <geom name="bottle_grip_xn" type="box" pos="-.023 0 .032" size=".004 .023 .012" mass=".002" material="bead_glass" condim="6" friction="5 .05 .01"/>
+      <geom name="bottle_grip_yp" type="box" pos="0 .023 .032" size=".019 .004 .012" mass=".002" material="bead_glass" condim="6" friction="5 .05 .01"/>
+      <geom name="bottle_grip_yn" type="box" pos="0 -.023 .032" size=".019 .004 .012" mass=".002" material="bead_glass" condim="6" friction="5 .05 .01"/>
       <!-- The collision opening is the full body diameter. A narrow neck
            jams six rigid beads unrealistically; this visual neck is excluded
            from contact and the proxy remains explicitly granular, not fluid. -->
@@ -54,11 +56,11 @@
     <body name="fork" pos="-.10 .355 .077"><freejoint name="fork_free"/><geom class="bead_tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".02"/></body>
     <body name="spoon" pos=".10 .355 .077"><freejoint name="spoon_free"/><geom class="bead_tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".02"/></body>
     <site name="plate_region" pos="0 -.105 .009"/><site name="fork_region" pos="-.115 -.105 .009"/><site name="spoon_region" pos=".115 -.105 .009"/><site name="mug_region" pos=".30 -.08 .009"/>
-    <body name="bead_0"><freejoint/><geom name="bead_0" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
-    <body name="bead_1"><freejoint/><geom name="bead_1" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
-    <body name="bead_2"><freejoint/><geom name="bead_2" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
-    <body name="bead_3"><freejoint/><geom name="bead_3" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
-    <body name="bead_4"><freejoint/><geom name="bead_4" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
-    <body name="bead_5"><freejoint/><geom name="bead_5" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001"/></body>
+    <body name="bead_0"><freejoint/><geom name="bead_0" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
+    <body name="bead_1"><freejoint/><geom name="bead_1" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
+    <body name="bead_2"><freejoint/><geom name="bead_2" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
+    <body name="bead_3"><freejoint/><geom name="bead_3" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
+    <body name="bead_4"><freejoint/><geom name="bead_4" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
+    <body name="bead_5"><freejoint/><geom name="bead_5" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
   </worldbody>
 </mujoco>

@@ -121,6 +121,9 @@ def _grasp(env, ik, object_name: str, arm: str, gripper_index: int, height: floa
 def run_pour_pose(
     env: AlohaTableSettingEnv, record_frames: bool = False,
     bottle_grasp_height: float = 0.035,
+    mug_anchor: np.ndarray | None = None,
+    tilt_delta: float = -0.90,
+    bottle_anchor: np.ndarray | None = None,
 ) -> AlohaPourResult:
     """Hold the mug with the right arm and tip the bottle over it with the left."""
     record: list[dict] | None = [] if record_frames else None
@@ -132,7 +135,8 @@ def run_pour_pose(
     # An open drawer occupies the original carry corridor. Keep the mug's
     # bottom above its front and lift the bottle before translating across it.
     drawer_open = float(env.oracle_state()["drawer_opening"][0]) > 0.11
-    anchor = np.array([0.11, 0.11, 0.23 if drawer_open else 0.20])
+    anchor = (np.array([0.11, 0.11, 0.23 if drawer_open else 0.20])
+              if mug_anchor is None else np.asarray(mug_anchor, dtype=np.float64))
     move_arm(env, ik, anchor, CLOSED, 80, "right", "MUG_PRESENT", record)
     _grasp(env, ik, "bottle", "left", 6, bottle_grasp_height, record)
     if drawer_open:
@@ -140,13 +144,19 @@ def run_pour_pose(
         move_arm(env, ik, bottle_site + [0, 0, 0.16], CLOSED, 80,
                  "left", "BOTTLE_LIFT", record)
     try:
-        _carry(env, ik, "left", "bottle",
-               np.array([-0.10, 0.08, 0.18 if drawer_open else 0.16]), record, "BOTTLE_PARK")
+        default_bottle_anchor = np.array(
+            [-0.10, 0.08, 0.18 if drawer_open else 0.16]
+        )
+        _carry(
+            env, ik, "left", "bottle",
+            default_bottle_anchor if bottle_anchor is None else np.asarray(bottle_anchor),
+            record, "BOTTLE_PARK",
+        )
     except RuntimeError:
         pass
     # This target stays below the tilt threshold under actuator control. A
     # larger command reaches farther initially but rebounds during the dwell.
-    _pitch_left(env, -0.90, record, release=False)
+    _pitch_left(env, tilt_delta, record, release=False)
     dwell = 0
     best_tilt = 1.0
     best_error = 1.0
