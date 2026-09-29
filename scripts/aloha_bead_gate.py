@@ -8,6 +8,7 @@ liquid was poured.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import asdict
 from pathlib import Path
@@ -28,7 +29,7 @@ def _place_beads(env) -> None:
     for index, name in enumerate(BEADS):
         joint = int(env.model.body(name).jntadr[0])
         address = int(env.model.jnt_qposadr[joint])
-        # Start inside the hollow bottle, in two separated layers. The old
+        # Start inside the hollow bottle, with six separated positions. The old
         # scene placed free beads above a solid cylinder, so they could only
         # fall onto the table.
         offset = np.array([(-0.006, 0.0, 0.006)[index % 3],
@@ -122,7 +123,12 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--seed-offset", type=int, default=100_000)
     parser.add_argument("--bottle-grasp-height", type=float, default=0.035)
+    parser.add_argument("--min-fraction", type=float, default=0.90)
     args = parser.parse_args()
+    if args.episodes < 1:
+        parser.error("--episodes must be positive")
+    if not 0.0 <= args.min_fraction <= 1.0:
+        parser.error("--min-fraction must be between zero and one")
     scene = Path(__file__).parents[1] / "assets/robots/aloha/task_pour_beads.xml"
     rows = []
     for index in range(args.episodes):
@@ -172,6 +178,11 @@ def main() -> None:
     report = {
         "skill": "bead_transfer",
         "episodes": args.episodes,
+        "seed_offset": args.seed_offset,
+        "scene_sha256": hashlib.sha256(scene.read_bytes()).hexdigest(),
+        "bottle_grasp_height": args.bottle_grasp_height,
+        "threshold": args.min_fraction,
+        "passed": fraction >= args.min_fraction,
         "mean_fraction_in_mug": fraction,
         "mean_spilled": float(np.mean([row["spilled"] for row in rows])),
         "note": "bead transfer only; not a liquid pour",
@@ -181,6 +192,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     (out / "bead_transfer.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({k: report[k] for k in ("skill", "episodes", "mean_fraction_in_mug", "mean_spilled")}))
+    raise SystemExit(0 if report["passed"] else 1)
 
 
 if __name__ == "__main__":

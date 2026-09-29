@@ -8,7 +8,7 @@
   </default>
   <worldbody>
     <!-- Beads ignore detailed robot meshes but still settle on this table. -->
-    <geom name="bead_table" type="box" pos="0 0 -.004" size=".61 .37 .004" contype="4" conaffinity="2" rgba="0 0 0 0"/>
+    <geom name="bead_table" type="box" pos="0 0 -.1009" size=".61 .37 .1" contype="4" conaffinity="2" rgba="0 0 0 0"/>
     <body name="cabinet" pos="0 .43 .105"><body name="top_drawer"><joint name="drawer_slide" type="slide" axis="0 -1 0" range="0 .16"/><geom type="box" size=".001 .001 .001" mass=".001" contype="0" conaffinity="0" rgba="0 0 0 0"/></body></body>
     <body name="plate" pos=".15 -.02 .007"><freejoint name="plate_free"/><geom name="plate_geom" class="bead_tableware" type="cylinder" size=".055 .007" mass=".06"/></body>
     <body name="mug" pos=".30 .12 .030">
@@ -56,11 +56,11 @@
     <body name="fork" pos="-.10 .355 .077"><freejoint name="fork_free"/><geom class="bead_tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".02"/></body>
     <body name="spoon" pos=".10 .355 .077"><freejoint name="spoon_free"/><geom class="bead_tableware" type="capsule" fromto="0 -.05 0 0 .05 0" size=".007" mass=".02"/></body>
     <site name="plate_region" pos="0 -.105 .009"/><site name="fork_region" pos="-.115 -.105 .009"/><site name="spoon_region" pos=".115 -.105 .009"/><site name="mug_region" pos=".30 -.08 .009"/>
-    <body name="bead_0"><freejoint/><geom name="bead_0" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
-    <body name="bead_1"><freejoint/><geom name="bead_1" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
-    <body name="bead_2"><freejoint/><geom name="bead_2" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
-    <body name="bead_3"><freejoint/><geom name="bead_3" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
-    <body name="bead_4"><freejoint/><geom name="bead_4" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
-    <body name="bead_5"><freejoint/><geom name="bead_5" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="4"/></body>
+    <body name="bead_0"><freejoint/><geom name="bead_0" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="6" solref=".004 1" solimp=".95 .99 .001"/></body>
+    <body name="bead_1"><freejoint/><geom name="bead_1" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="6" solref=".004 1" solimp=".95 .99 .001"/></body>
+    <body name="bead_2"><freejoint/><geom name="bead_2" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="6" solref=".004 1" solimp=".95 .99 .001"/></body>
+    <body name="bead_3"><freejoint/><geom name="bead_3" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="6" solref=".004 1" solimp=".95 .99 .001"/></body>
+    <body name="bead_4"><freejoint/><geom name="bead_4" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="6" solref=".004 1" solimp=".95 .99 .001"/></body>
+    <body name="bead_5"><freejoint/><geom name="bead_5" type="sphere" size=".003" mass=".0005" rgba=".85 .15 .12 1" friction="1 .01 .001" contype="2" conaffinity="6" solref=".004 1" solimp=".95 .99 .001"/></body>
   </worldbody>
 </mujoco>
