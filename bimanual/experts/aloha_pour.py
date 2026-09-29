@@ -118,7 +118,10 @@ def _grasp(env, ik, object_name: str, arm: str, gripper_index: int, height: floa
         step_recorded(env, action, arm, "GRASP", record)
 
 
-def run_pour_pose(env: AlohaTableSettingEnv, record_frames: bool = False) -> AlohaPourResult:
+def run_pour_pose(
+    env: AlohaTableSettingEnv, record_frames: bool = False,
+    bottle_grasp_height: float = 0.035,
+) -> AlohaPourResult:
     """Hold the mug with the right arm and tip the bottle over it with the left."""
     record: list[dict] | None = [] if record_frames else None
     ik = AlohaIK(env.model)
@@ -131,7 +134,7 @@ def run_pour_pose(env: AlohaTableSettingEnv, record_frames: bool = False) -> Alo
     drawer_open = float(env.oracle_state()["drawer_opening"][0]) > 0.11
     anchor = np.array([0.11, 0.11, 0.23 if drawer_open else 0.20])
     move_arm(env, ik, anchor, CLOSED, 80, "right", "MUG_PRESENT", record)
-    _grasp(env, ik, "bottle", "left", 6, 0.035, record)
+    _grasp(env, ik, "bottle", "left", 6, bottle_grasp_height, record)
     if drawer_open:
         bottle_site = env.data.site_xpos[env.model.site("left/gripper").id].copy()
         move_arm(env, ik, bottle_site + [0, 0, 0.16], CLOSED, 80,
