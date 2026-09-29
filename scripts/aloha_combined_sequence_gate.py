@@ -157,9 +157,8 @@ def main() -> None:
                           for path in [Path(__file__).resolve(),
                                        *sorted((scene.parents[3] / "bimanual/experts").glob("aloha_*.py"))]},
         "scripted_interventions": ["neutral arm resets before handoff and pour",
-                                   "baton repositioning before handoff and pour",
-                                   "pour dwell joint and object pose freezing"],
-        "action_only_replay_verified": False,
+                                   "baton repositioning before handoff and pour"],
+        "action_only_replay_report": "outputs/gates/pour_action_replay_probe.json",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2) + "\n")

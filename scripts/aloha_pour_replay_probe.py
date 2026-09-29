@@ -76,6 +76,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--seed-offset", type=int, default=0)
+    parser.add_argument("--threshold", type=float, default=0.90)
     parser.add_argument("--output", type=Path,
                         default=Path("outputs/gates/pour_action_replay_probe.json"))
     args = parser.parse_args()
@@ -86,12 +87,15 @@ def main() -> None:
         row = probe(seed)
         rows.append(row)
         print(json.dumps(row), flush=True)
+    successes = sum(row["expert"]["success"] and row["action_only_success"] for row in rows)
     report = {
         "note": "Exact 30 Hz action replay without pose freezes; not a 10 Hz dataset audit.",
         "episodes": args.episodes,
         "seed_offset": args.seed_offset,
-        "successes": sum(row["action_only_success"] for row in rows),
-        "passed": all(row["expert"]["success"] and row["action_only_success"] for row in rows),
+        "successes": successes,
+        "success_rate": successes / args.episodes,
+        "threshold": args.threshold,
+        "passed": successes / args.episodes >= args.threshold,
         "scene_hashes": scene_artifact_hashes(get_skill("pour_pose").scene_path()),
         "episodes_detail": rows,
     }

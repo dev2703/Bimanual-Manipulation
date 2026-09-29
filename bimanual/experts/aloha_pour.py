@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import mujoco
 import numpy as np
 
-from bimanual.control.aloha_ik import ARM_JOINTS, AlohaIK
+from bimanual.control.aloha_ik import AlohaIK
 from bimanual.experts.aloha_motion import CLOSED, OPEN, move_arm, step_recorded
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 
@@ -43,7 +43,9 @@ def pour_pose_reached(
         and tilt_cosine < 0.88
         and mouth_xy_error < 0.10
         and dwell_steps >= 20
-        and 0.012 < mug_opening < 0.036
+        # The gripper may pinch either the mug body or its 12 mm handle. An
+        # empty fully closed gripper settles near the 2 mm control limit.
+        and 0.005 < mug_opening < 0.036
         and bottle_opening < 0.034
     )
 
@@ -78,42 +80,6 @@ def _nudge_mouth_toward_mug(env, ik, record) -> None:
             return
 
 
-def _lock_left_here(env, mug_pinch: float) -> None:
-    """Hold the leaned arm and the bottle pose for the dwell.
-
-    The wrist actuator cannot keep a tipped bottle from standing back up, so
-    the scripted dwell freezes the pose it just achieved.
-    """
-    joints = np.array([
-        float(env.data.qpos[int(env.model.joint(f"left/{name}").qposadr[0])])
-        for name in ARM_JOINTS
-    ])
-    bottle_joint = int(env.model.body("bottle").jntadr[0])
-    bottle_qadr = int(env.model.jnt_qposadr[bottle_joint])
-    bottle_dof = int(env.model.jnt_dofadr[bottle_joint])
-    bottle_qpos = env.data.qpos[bottle_qadr:bottle_qadr + 7].copy()
-    mug_joint = env.model.joint("mug_free")
-    mug_qadr = int(mug_joint.qposadr[0])
-    mug_dof = int(env.model.jnt_dofadr[mug_joint.id])
-    mug_qpos = env.data.qpos[mug_qadr:mug_qadr + 7].copy()
-    finger = env.model.joint("right/left_finger")
-    finger_qpos = float(mug_pinch)
-
-    def _lock() -> None:
-        for index, name in enumerate(ARM_JOINTS):
-            joint = env.model.joint(f"left/{name}")
-            env.data.qpos[int(joint.qposadr[0])] = joints[index]
-            env.data.qvel[int(env.model.jnt_dofadr[joint.id])] = 0.0
-        env.data.qpos[bottle_qadr:bottle_qadr + 7] = bottle_qpos
-        env.data.qvel[bottle_dof:bottle_dof + 6] = 0.0
-        env.data.qpos[mug_qadr:mug_qadr + 7] = mug_qpos
-        env.data.qvel[mug_dof:mug_dof + 6] = 0.0
-        env.data.qpos[int(finger.qposadr[0])] = finger_qpos
-        mujoco.mj_forward(env.model, env.data)
-
-    env.after_step = _lock
-
-
 def _pitch_left(env, delta: float, record, release: bool = True) -> None:
     """Tip the left wrist with the position actuators so the bottle stays pinched."""
     del release
@@ -126,61 +92,6 @@ def _pitch_left(env, delta: float, record, release: bool = True) -> None:
         action[6] = CLOSED
         action[13] = CLOSED
         step_recorded(env, action, "left", "BOTTLE_TILT", record)
-
-
-def _lock_right(env) -> None:
-    """Keep the mug hand where it is while the other arm moves."""
-    joints = np.array([
-        float(env.data.qpos[int(env.model.joint(f"right/{name}").qposadr[0])])
-        for name in ARM_JOINTS
-    ])
-
-    def _lock() -> None:
-        for index, name in enumerate(ARM_JOINTS):
-            joint = env.model.joint(f"right/{name}")
-            env.data.qpos[int(joint.qposadr[0])] = joints[index]
-            env.data.qvel[int(env.model.jnt_dofadr[joint.id])] = 0.0
-        mujoco.mj_forward(env.model, env.data)
-
-    env.after_step = _lock
-
-
-def _hold_tilt(env, ik: AlohaIK, target: np.ndarray, quaternion: np.ndarray, record, release: bool = True) -> None:
-    """Reach a tipped grasp, then let the actuators hold it."""
-    result = ik.solve(
-        env.data.qpos, {"left": (np.asarray(target, dtype=np.float64), quaternion)},
-        orientation_tolerance=0.8,
-    )
-    joints = result.joint_targets["left"]
-    start = env.data.ctrl[0:6].copy()
-    held = {"joints": start}
-
-    def _lock() -> None:
-        for index, name in enumerate(ARM_JOINTS):
-            joint = env.model.joint(f"left/{name}")
-            env.data.qpos[int(joint.qposadr[0])] = held["joints"][index]
-            env.data.qvel[int(env.model.jnt_dofadr[joint.id])] = 0.0
-        bottle = env.model.body("bottle").jntadr[0]
-        env.data.qvel[int(env.model.jnt_dofadr[bottle]):int(env.model.jnt_dofadr[bottle]) + 6] = 0.0
-        mujoco.mj_forward(env.model, env.data)
-
-    previous = env.after_step
-
-    def _lock_both() -> None:
-        if previous is not None:
-            previous()
-        _lock()
-
-    env.after_step = _lock_both
-    for alpha in np.linspace(0.0, 1.0, 24):
-        held["joints"] = (1.0 - alpha) * start + alpha * joints
-        action = env.data.ctrl.copy()
-        action[0:6] = held["joints"]
-        action[6] = CLOSED
-        action[13] = CLOSED
-        step_recorded(env, action, "left", "BOTTLE_TILT", record)
-    if release:
-        env.after_step = None
 
 
 def _mouth(env: AlohaTableSettingEnv) -> tuple[np.ndarray, np.ndarray]:
@@ -220,8 +131,6 @@ def run_pour_pose(env: AlohaTableSettingEnv, record_frames: bool = False) -> Alo
     drawer_open = float(env.oracle_state()["drawer_opening"][0]) > 0.11
     anchor = np.array([0.11, 0.11, 0.23 if drawer_open else 0.20])
     move_arm(env, ik, anchor, CLOSED, 80, "right", "MUG_PRESENT", record)
-    mug_pinch = float(env.state_vector()[13])
-
     _grasp(env, ik, "bottle", "left", 6, 0.035, record)
     if drawer_open:
         bottle_site = env.data.site_xpos[env.model.site("left/gripper").id].copy()
@@ -229,14 +138,15 @@ def run_pour_pose(env: AlohaTableSettingEnv, record_frames: bool = False) -> Alo
                  "left", "BOTTLE_LIFT", record)
     try:
         _carry(env, ik, "left", "bottle",
-               np.array([-0.10, 0.08, 0.20 if drawer_open else 0.16]), record, "BOTTLE_PARK")
+               np.array([-0.10, 0.08, 0.18 if drawer_open else 0.16]), record, "BOTTLE_PARK")
     except RuntimeError:
         pass
-    _pitch_left(env, -1.05, record, release=False)
+    # This target stays below the tilt threshold under actuator control. A
+    # larger command reaches farther initially but rebounds during the dwell.
+    _pitch_left(env, -0.90, record, release=False)
     dwell = 0
     best_tilt = 1.0
     best_error = 1.0
-    _lock_left_here(env, mug_pinch)
     for _ in range(25):
         action = env.data.ctrl.copy()
         action[6] = CLOSED
@@ -249,8 +159,6 @@ def run_pour_pose(env: AlohaTableSettingEnv, record_frames: bool = False) -> Alo
         best_error = min(best_error, error)
         if float(up[2]) < 0.88 and error < 0.10 and float(mug[2]) > 0.08:
             dwell += 1
-    env.after_step = None
-
     mug = env.oracle_state()["mug_pos"]
     bottle = env.oracle_state()["bottle_pos"]
     state = env.state_vector()
