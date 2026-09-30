@@ -13,7 +13,9 @@ from pathlib import Path
 import numpy as np
 
 from bimanual.data.scene_artifacts import scene_artifact_hashes
-from bimanual.experts.aloha_pour import _mouth, pour_pose_reached, run_pour_pose
+from bimanual.experts.aloha_pour import (
+    _mouth, outlet_aligned, pour_alignment, pour_pose_reached, run_pour_pose,
+)
 from bimanual.skills.registry import get_skill
 
 
@@ -48,8 +50,10 @@ def probe(seed: int) -> dict:
                 error = float(np.linalg.norm(mouth[:2] - mug[:2]))
                 best_tilt = min(best_tilt, float(up[2]))
                 best_error = min(best_error, error)
-                if up[2] < 0.88 and error < 0.10 and mug[2] > 0.08:
+                if outlet_aligned(pour_alignment(env)) and mug[2] > 0.08:
                     dwell += 1
+                else:
+                    dwell = 0
         state = env.oracle_state()
         joints = env.state_vector()
         metrics = {
@@ -64,9 +68,12 @@ def probe(seed: int) -> dict:
         return {
             "seed": seed,
             "expert": {k: v for k, v in asdict(expert).items() if k != "record"},
-            "action_only_success": pour_pose_reached(**metrics),
+            "action_only_success": (
+                outlet_aligned(pour_alignment(env)) and pour_pose_reached(**metrics)
+            ),
             "control_steps": len(actions),
             "replay": metrics,
+            "alignment": pour_alignment(env),
         }
     finally:
         env.close()

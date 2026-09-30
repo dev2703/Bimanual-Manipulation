@@ -20,7 +20,9 @@ from bimanual.experts.aloha_drawer import run_drawer_open
 from bimanual.experts.aloha_handoff import run_baton_handoff
 from bimanual.experts.aloha_mug import run_mug_pick_place
 from bimanual.experts.aloha_plate import run_plate_pick_place
-from bimanual.experts.aloha_pour import run_pour_pose
+from bimanual.experts.aloha_pour import (
+    outlet_aligned, pour_alignment, pour_pose_reached, run_pour_pose,
+)
 from bimanual.sim.aloha_env import AlohaPhysicalEnv, AlohaTableSettingEnv
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets" / "robots" / "aloha"
@@ -34,6 +36,7 @@ class RolloutState:
     target: np.ndarray | None = None
     carried_to_target: bool = False
     initial_height: float = 0.0
+    pour_dwell_steps: int = 0
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,25 @@ class Skill:
         if self.check is not None:
             return bool(self.check(env, state))
         return float(state.position[2]) >= state.initial_height + self.lift_threshold
+
+
+def _pour_step(env, state: RolloutState) -> None:
+    _track_height(env, state, "mug_pos")
+    if outlet_aligned(pour_alignment(env)) and state.position[2] > .08:
+        state.pour_dwell_steps += 1
+    else:
+        state.pour_dwell_steps = 0
+
+
+def _pour_ok(env, state: RolloutState) -> bool:
+    alignment = pour_alignment(env)
+    joints = env.state_vector()
+    return outlet_aligned(alignment) and pour_pose_reached(
+        float(env.oracle_state()["mug_pos"][2]),
+        float(env.oracle_state()["bottle_pos"][2]),
+        alignment["bottle_upright_cosine"], alignment["mouth_xy_error"],
+        state.pour_dwell_steps, float(joints[13]), float(joints[6]),
+    )
 
 
 def _track_height(env, state: RolloutState, key: str) -> None:
@@ -195,9 +217,10 @@ SKILLS: dict[str, Skill] = {
     ),
     "pour_pose": Skill(
         "pour_pose", "pour", "task_table_setting.xml",
-        "Hold the mug and tip the bottle over it.",
-        "aloha_pour_pose_v1", run_pour_pose, ("left", "right"), "mug_pos",
-        gate_passed=True,
+        "Hold the glass upright with the bottle outlet centered one inch above its rim.",
+        "aloha_pour_pose_v2", run_pour_pose, ("left", "right"), "mug_pos",
+        gate_passed=False,
+        on_step=_pour_step, check=_pour_ok,
     ),
     "baton_handoff": Skill(
         "baton_handoff", "handoff", "task_handoff_baton.xml",
