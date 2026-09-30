@@ -34,3 +34,9 @@ def test_pour_pose_requires_a_lean_dwell_over_a_held_mug():
     assert not pour_pose_reached(0.12, 0.20, 0.97, 0.07, 25, 0.025, 0.030)
     assert not pour_pose_reached(0.12, 0.20, 0.80, 0.20, 25, 0.025, 0.030)
     assert not pour_pose_reached(0.12, 0.20, 0.80, 0.07, 2, 0.025, 0.030)
+
+
+def test_table_supported_pour_requires_released_glass_and_held_bottle():
+    assert pour_pose_reached(.03, .05, .42, .002, 25, .037, .025, table_supported=True)
+    assert not pour_pose_reached(.03, .05, .42, .002, 25, .008, .025, table_supported=True)
+    assert not pour_pose_reached(.03, .05, .42, .002, 25, .037, .002, table_supported=True)

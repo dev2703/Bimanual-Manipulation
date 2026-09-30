@@ -50,7 +50,7 @@ def probe(seed: int) -> dict:
                 error = float(np.linalg.norm(mouth[:2] - mug[:2]))
                 best_tilt = min(best_tilt, float(up[2]))
                 best_error = min(best_error, error)
-                if outlet_aligned(pour_alignment(env)) and mug[2] > 0.08:
+                if outlet_aligned(pour_alignment(env)) and mug[2] > 0.02:
                     dwell += 1
                 else:
                     dwell = 0
@@ -64,6 +64,7 @@ def probe(seed: int) -> dict:
             "dwell_steps": dwell,
             "mug_opening": float(joints[13]),
             "bottle_opening": float(joints[6]),
+            "table_supported": True,
         }
         return {
             "seed": seed,

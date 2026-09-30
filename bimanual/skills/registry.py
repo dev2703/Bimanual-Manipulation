@@ -96,7 +96,7 @@ class Skill:
 
 def _pour_step(env, state: RolloutState) -> None:
     _track_height(env, state, "mug_pos")
-    if outlet_aligned(pour_alignment(env)) and state.position[2] > .08:
+    if outlet_aligned(pour_alignment(env)) and state.position[2] > .02:
         state.pour_dwell_steps += 1
     else:
         state.pour_dwell_steps = 0
@@ -109,7 +109,7 @@ def _pour_ok(env, state: RolloutState) -> bool:
         float(env.oracle_state()["mug_pos"][2]),
         float(env.oracle_state()["bottle_pos"][2]),
         alignment["bottle_upright_cosine"], alignment["mouth_xy_error"],
-        state.pour_dwell_steps, float(joints[13]), float(joints[6]),
+        state.pour_dwell_steps, float(joints[13]), float(joints[6]), table_supported=True,
     )
 
 
@@ -217,8 +217,8 @@ SKILLS: dict[str, Skill] = {
     ),
     "pour_pose": Skill(
         "pour_pose", "pour", "task_table_setting.xml",
-        "Hold the glass upright with the bottle outlet centered one inch above its rim.",
-        "aloha_pour_pose_v2", run_pour_pose, ("left", "right"), "mug_pos",
+        "Place the glass upright on the table and hold the bottle outlet centered one inch above its rim.",
+        "aloha_pour_pose_v3", run_pour_pose, ("left", "right"), "mug_pos",
         gate_passed=False,
         on_step=_pour_step, check=_pour_ok,
     ),

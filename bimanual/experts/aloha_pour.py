@@ -1,6 +1,6 @@
 """Scripted pour-pose expert.
 
-The right arm holds the mug. The left arm holds the bottle and tips it so the
+The right arm places the mug on the table. The left arm holds the bottle so the
 mouth dwells over the mug. This measures a geometric pour pose. It does not
 claim that liquid moved. Bead transfer is a separate scene and metric.
 """
@@ -59,24 +59,26 @@ class AlohaPourResult:
     rim_gap: float = float("nan")
     mug_upright_cosine: float = float("nan")
     target_gap: float = POUR_GAP
+    failure_reason: str | None = None
 
 
 def pour_pose_reached(
     mug_height: float, bottle_height: float, tilt_cosine: float,
     mouth_xy_error: float, dwell_steps: int,
     mug_opening: float, bottle_opening: float,
+    table_supported: bool = False,
 ) -> bool:
     """Bottle mouth dwells above a mug that is still being held."""
     return bool(
-        mug_height > 0.08
-        and bottle_height > 0.10
+        mug_height > (0.02 if table_supported else 0.08)
+        and bottle_height > (0.02 if table_supported else 0.10)
         and tilt_cosine < 0.88
         and mouth_xy_error < 0.10
         and dwell_steps >= 20
         # The gripper may pinch either the mug body or its 12 mm handle. An
         # empty fully closed gripper settles near the 2 mm control limit.
-        and 0.005 < mug_opening < 0.036
-        and bottle_opening < 0.034
+        and (mug_opening > 0.030 if table_supported else 0.005 < mug_opening < 0.036)
+        and 0.005 < bottle_opening < 0.034
     )
 
 
@@ -145,7 +147,7 @@ def _level_mug(env, ik, record) -> None:
         up = env.data.xmat[body].reshape(3, 3)[:, 2]
         angle = float(np.arccos(np.clip(up[2], -1, 1)))
         current_center = env.data.xpos[body].copy()
-        translation = np.clip(getattr(env, "pour_mug_anchor", current_center) - current_center, -.01, .01)
+        translation = np.zeros(3)
         if angle < .04 and np.linalg.norm(translation) < .002:
             return
         axis = np.cross(up, [0., 0., 1.])
@@ -167,9 +169,13 @@ def _level_mug(env, ik, record) -> None:
             return
 
 
-def _align_outlet(env, ik, record, desired_rotation) -> None:
+def _align_outlet(env, ik, record, desired_rotation) -> str | None:
     """Approach the measured rim in small translations under joint control."""
-    for _ in range(14):
+    for _ in range(40):
+        if env.mug_upright_cosine() < .98:
+            return "glass_not_upright"
+        if env.state_vector()[6] <= .005:
+            return "bottle_grasp_lost"
         mouth, _ = _mouth(env)
         mug_id = env.model.body("mug").id
         rim = env.data.xpos[mug_id] + env.data.xmat[mug_id].reshape(3, 3)[:, 2] * MUG_RIM_OFFSET
@@ -183,11 +189,17 @@ def _align_outlet(env, ik, record, desired_rotation) -> None:
         correction = desired_rotation @ env.data.xmat[body_id].reshape(3, 3).T
         target = mouth + delta + correction @ (env.data.site_xpos[site_id] - mouth)
         mujoco.mju_mat2Quat(quaternion, (correction @ env.data.site_xmat[site_id].reshape(3, 3)).ravel())
-        try:
-            move_arm(env, ik, target,
-                     CLOSED, 24, "left", "ALIGN_OUTLET", record, quaternion)
-        except RuntimeError:
-            return
+        solution = ik.solve(env.data.qpos, {"left": (target, quaternion)},
+                            max_iters=240, position_tolerance=.005)
+        if not solution.converged["left"]:
+            return "outlet_target_unreachable"
+        start = env.data.ctrl.copy()
+        for alpha in np.linspace(0., 1., 24):
+            action = start.copy()
+            action[:6] = (1-alpha)*start[:6] + alpha*solution.joint_targets["left"]
+            action[6] = CLOSED
+            step_recorded(env, action, "left", "ALIGN_OUTLET", record)
+    return "alignment_iteration_limit"
 
 
 def _grasp(env, ik, object_name: str, arm: str, gripper_index: int, height: float, record,
@@ -212,7 +224,7 @@ def run_pour_pose(
     tilt_delta: float = -1.134464,
     bottle_anchor: np.ndarray | None = None,
 ) -> AlohaPourResult:
-    """Hold the mug with the right arm and tip the bottle over it with the left."""
+    """Place the glass, clear the right arm, then align a side-grasped bottle."""
     record: list[dict] | None = [] if record_frames else None
     ik = AlohaIK(env.model)
     _grasp(env, ik, "mug", "right", 13, 0.010, record, lateral_offset=0.040)
@@ -221,7 +233,6 @@ def run_pour_pose(
     # Stow the mug on the right, clear of the left arm's bottle pickup.
     # An open drawer occupies the original carry corridor. Keep the mug's
     # bottom above its front and lift the bottle before translating across it.
-    drawer_open = float(env.oracle_state()["drawer_opening"][0]) > 0.11
     anchor = (np.array([0.11, 0.11, 0.24])
               if mug_anchor is None else np.asarray(mug_anchor, dtype=np.float64))
     move_arm(env, ik, anchor, CLOSED, 80, "right", "MUG_PRESENT", record)
@@ -238,6 +249,8 @@ def run_pour_pose(
         step_recorded(env, action, "right", "GLASS_RELEASE", record)
     move_arm(env, ik, env.data.site_xpos[site_id].copy() + [0, 0, .16],
              OPEN, 60, "right", "GLASS_RETRACT", record, quaternion)
+    move_arm(env, ik, np.array([.30, .12, .20]), OPEN, 70,
+             "right", "CLEAR_POUR_WORKSPACE", record)
     bottle = env.oracle_state()["bottle_pos"].copy()
     side = np.array([1., 0., 0., 0.])
     for target, gripper, steps, phase in (
@@ -247,8 +260,12 @@ def run_pour_pose(
         (bottle + [0, 0, bottle_grasp_height + .20], CLOSED, 100, "BOTTLE_LIFT"),
     ):
         move_arm(env, ik, target, gripper, steps, "left", phase, record, side)
-    center = (np.array([-.07, .10, .29]) if bottle_anchor is None
-              else np.asarray(bottle_anchor))
+    tilt = abs(tilt_delta)
+    final_up = np.array([np.sin(tilt), 0., np.cos(tilt)])
+    mug_id = env.model.body("mug").id
+    rim = env.data.xpos[mug_id] + env.data.xmat[mug_id].reshape(3, 3)[:, 2] * MUG_RIM_OFFSET
+    center = (rim + [0, 0, POUR_GAP + .030] - final_up * MOUTH_OFFSET
+              if bottle_anchor is None else np.asarray(bottle_anchor))
     site_id = env.model.site("left/gripper").id
     target = env.data.site_xpos[site_id].copy() + center - env.oracle_state()["bottle_pos"]
     move_arm(env, ik, target, CLOSED, 80, "left", "BOTTLE_PARK", record, side)
@@ -261,21 +278,21 @@ def run_pour_pose(
         quaternion = np.empty(4)
         mujoco.mju_mat2Quat(quaternion, (correction @ env.data.site_xmat[site_id].reshape(3, 3)).ravel())
         move_arm(env, ik, target, CLOSED, 35, "left", "BOTTLE_TILT", record, quaternion)
-    _align_outlet(env, ik, record, desired_rotation)
+    failure_reason = _align_outlet(env, ik, record, desired_rotation)
     dwell = 0
     best_tilt = 1.0
     best_error = 1.0
     for _ in range(25):
         action = env.data.ctrl.copy()
         action[6] = CLOSED
-        action[13] = CLOSED
+        action[13] = OPEN
         step_recorded(env, action, "left", "POUR_DWELL", record)
         mouth, up = _mouth(env)
         mug = env.oracle_state()["mug_pos"]
         error = float(np.linalg.norm(mouth[:2] - mug[:2]))
         best_tilt = min(best_tilt, float(up[2]))
         best_error = min(best_error, error)
-        if outlet_aligned(pour_alignment(env)) and float(mug[2]) > 0.08:
+        if outlet_aligned(pour_alignment(env)) and float(mug[2]) > 0.02:
             dwell += 1
         else:
             dwell = 0
@@ -285,10 +302,11 @@ def run_pour_pose(
     alignment = pour_alignment(env)
     success = outlet_aligned(alignment) and pour_pose_reached(
         float(mug[2]), float(bottle[2]), best_tilt, best_error, dwell,
-        float(state[13]), float(state[6]),
+        float(state[13]), float(state[6]), table_supported=True,
     )
     return AlohaPourResult(
         success, float(mug[2]), float(bottle[2]), float(up[2]),
         alignment["mouth_xy_error"], dwell, record or [],
         alignment["rim_gap"], alignment["mug_upright_cosine"],
+        POUR_GAP, None if success else (failure_reason or "dwell_alignment_failed"),
     )
