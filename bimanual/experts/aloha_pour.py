@@ -15,35 +15,14 @@ import numpy as np
 from bimanual.control.aloha_ik import AlohaIK
 from bimanual.experts.aloha_motion import CLOSED, OPEN, move_arm, step_recorded
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
+from bimanual.evaluation.pour_geometry import (
+    APPROACH_GAP, MOUTH_OFFSET, MUG_RIM_OFFSET, bottle_outlet,
+    outlet_target, pour_alignment, pour_sample_valid, pour_succeeded,
+    bottle_contact_bodies, glass_blocking_contacts,
+)
 
-MOUTH_OFFSET = 0.081
-POUR_GAP = 0.0254
-MUG_RIM_OFFSET = 0.030
-
-
-def pour_alignment(env) -> dict[str, float]:
-    """Measure the outlet relative to the center of the glass rim."""
-    mouth, bottle_up = _mouth(env)
-    mug_id = env.model.body("mug").id
-    mug_up = env.data.xmat[mug_id].reshape(3, 3)[:, 2]
-    rim = env.data.xpos[mug_id] + mug_up * MUG_RIM_OFFSET
-    delta = mouth - rim
-    return {
-        "mouth_xy_error": float(np.linalg.norm(delta[:2])),
-        "rim_gap": float(delta[2]),
-        "mug_upright_cosine": float(mug_up[2]),
-        "bottle_upright_cosine": float(bottle_up[2]),
-    }
-
-
-def outlet_aligned(metrics: dict[str, float]) -> bool:
-    """Centered within 5 mm, one inch above the rim within 3 mm."""
-    return bool(
-        metrics["mouth_xy_error"] <= 0.005
-        and abs(metrics["rim_gap"] - POUR_GAP) <= 0.003
-        and metrics["mug_upright_cosine"] >= 0.98
-        and metrics["bottle_upright_cosine"] < 0.88
-    )
+# Kept for the static preview's requested example gap, not a pass criterion.
+POUR_GAP = .0254
 
 
 @dataclass(frozen=True)
@@ -60,33 +39,11 @@ class AlohaPourResult:
     target_gap: float = POUR_GAP
     failure_reason: str | None = None
     diagnostics: dict = field(default_factory=dict)
-
-
-def pour_pose_reached(
-    mug_height: float, bottle_height: float, tilt_cosine: float,
-    mouth_xy_error: float, dwell_steps: int,
-    mug_opening: float, bottle_opening: float,
-    table_supported: bool = False,
-) -> bool:
-    """Bottle mouth dwells above a mug that is still being held."""
-    return bool(
-        mug_height > (0.02 if table_supported else 0.08)
-        and bottle_height > (0.02 if table_supported else 0.10)
-        and tilt_cosine < 0.88
-        and mouth_xy_error < 0.10
-        and dwell_steps >= 20
-        # The gripper may pinch either the mug body or its 12 mm handle. An
-        # empty fully closed gripper settles near the 2 mm control limit.
-        and (mug_opening > 0.030 if table_supported else 0.005 < mug_opening < 0.036)
-        and 0.005 < bottle_opening < 0.034
-    )
+    stream_margin: float | None = None
 
 
 def _mouth(env: AlohaTableSettingEnv) -> tuple[np.ndarray, np.ndarray]:
-    body = int(env.model.body("bottle").id)
-    rotation = env.data.xmat[body].reshape(3, 3)
-    up = rotation[:, 2].copy()
-    return env.data.xpos[body].copy() + up * MOUTH_OFFSET, up
+    return bottle_outlet(env)
 
 
 def _level_mug(env, ik, record) -> None:
@@ -119,14 +76,20 @@ def _level_mug(env, ik, record) -> None:
 def _align_outlet(env, ik, record, desired_rotation, diagnostics) -> str | None:
     """Approach the measured rim in small translations under joint control."""
     for _ in range(40):
+        blockers = glass_blocking_contacts(env)
+        if blockers:
+            diagnostics["blocking_contacts"] = sorted(set(blockers))
+            return "gripper_glass_collision"
         if env.mug_upright_cosine() < .98:
             return "glass_not_upright"
         if env.state_vector()[6] <= .005:
             return "bottle_grasp_lost"
+        if pour_sample_valid(env):
+            return None
         mouth, _ = _mouth(env)
         mug_id = env.model.body("mug").id
         rim = env.data.xpos[mug_id] + env.data.xmat[mug_id].reshape(3, 3)[:, 2] * MUG_RIM_OFFSET
-        delta = rim + [0, 0, POUR_GAP] - mouth
+        delta = outlet_target(rim, desired_rotation[:, 2]) - mouth
         if np.linalg.norm(delta) < .002:
             return
         delta = np.clip(delta, -.008, .008)
@@ -168,7 +131,7 @@ def _grasp(env, ik, object_name: str, arm: str, gripper_index: int, height: floa
 
 def run_pour_pose(
     env: AlohaTableSettingEnv, record_frames: bool = False,
-    bottle_grasp_height: float = 0.025,
+    bottle_grasp_height: float = 0.075,
     mug_anchor: np.ndarray | None = None,
     tilt_delta: float = -1.134464,
     bottle_anchor: np.ndarray | None = None,
@@ -213,7 +176,7 @@ def run_pour_pose(
     final_up = np.array([np.sin(tilt), 0., np.cos(tilt)])
     mug_id = env.model.body("mug").id
     rim = env.data.xpos[mug_id] + env.data.xmat[mug_id].reshape(3, 3)[:, 2] * MUG_RIM_OFFSET
-    center = (rim + [0, 0, POUR_GAP + .030] - final_up * MOUTH_OFFSET
+    center = (outlet_target(rim, final_up) + [0, 0, .030] - final_up * MOUTH_OFFSET
               if bottle_anchor is None else np.asarray(bottle_anchor))
     site_id = env.model.site("left/gripper").id
     target = env.data.site_xpos[site_id].copy() + center - env.oracle_state()["bottle_pos"]
@@ -230,8 +193,6 @@ def run_pour_pose(
     diagnostics = {}
     failure_reason = _align_outlet(env, ik, record, desired_rotation, diagnostics)
     dwell = 0
-    best_tilt = 1.0
-    best_error = 1.0
     for _ in range(25):
         action = env.data.ctrl.copy()
         action[6] = CLOSED
@@ -239,34 +200,23 @@ def run_pour_pose(
         step_recorded(env, action, "left", "POUR_DWELL", record)
         mouth, up = _mouth(env)
         mug = env.oracle_state()["mug_pos"]
-        error = float(np.linalg.norm(mouth[:2] - mug[:2]))
-        best_tilt = min(best_tilt, float(up[2]))
-        best_error = min(best_error, error)
-        if outlet_aligned(pour_alignment(env)) and float(mug[2]) > 0.02:
+        if pour_sample_valid(env):
             dwell += 1
         else:
             dwell = 0
     mug = env.oracle_state()["mug_pos"]
     bottle = env.oracle_state()["bottle_pos"]
-    state = env.state_vector()
     alignment = pour_alignment(env)
-    contacts = set()
-    for contact in env.data.contact:
-        bodies = [env.model.body(env.model.geom_bodyid[g]).name for g in contact.geom]
-        if "bottle" in bodies:
-            contacts.update(name for name in bodies if name.startswith("left/"))
-    diagnostics["bottle_contact_bodies"] = sorted(contacts)
+    contacts = bottle_contact_bodies(env)
+    diagnostics["bottle_contact_bodies"] = contacts
     diagnostics["bottle_has_two_finger_contacts"] = all(
         f"left/{finger}_finger_link" in contacts for finger in ("left", "right")
     )
-    success = outlet_aligned(alignment) and pour_pose_reached(
-        float(mug[2]), float(bottle[2]), best_tilt, best_error, dwell,
-        float(state[13]), float(state[6]), table_supported=True,
-    )
+    success = failure_reason is None and pour_succeeded(env, dwell)
     return AlohaPourResult(
         success, float(mug[2]), float(bottle[2]), float(up[2]),
         alignment["mouth_xy_error"], dwell, record or [],
         alignment["rim_gap"], alignment["mug_upright_cosine"],
-        POUR_GAP, None if success else (failure_reason or "dwell_alignment_failed"),
-        diagnostics,
+        APPROACH_GAP, None if success else (failure_reason or "dwell_alignment_failed"),
+        diagnostics, alignment["stream_margin"],
     )

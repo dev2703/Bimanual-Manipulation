@@ -20,9 +20,8 @@ from bimanual.experts.aloha_drawer import run_drawer_open
 from bimanual.experts.aloha_handoff import run_baton_handoff
 from bimanual.experts.aloha_mug import run_mug_pick_place
 from bimanual.experts.aloha_plate import run_plate_pick_place
-from bimanual.experts.aloha_pour import (
-    outlet_aligned, pour_alignment, pour_pose_reached, run_pour_pose,
-)
+from bimanual.experts.aloha_pour import run_pour_pose
+from bimanual.evaluation.pour_geometry import pour_sample_valid, pour_succeeded
 from bimanual.sim.aloha_env import AlohaPhysicalEnv, AlohaTableSettingEnv
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets" / "robots" / "aloha"
@@ -96,21 +95,14 @@ class Skill:
 
 def _pour_step(env, state: RolloutState) -> None:
     _track_height(env, state, "mug_pos")
-    if outlet_aligned(pour_alignment(env)) and state.position[2] > .02:
+    if pour_sample_valid(env):
         state.pour_dwell_steps += 1
     else:
         state.pour_dwell_steps = 0
 
 
 def _pour_ok(env, state: RolloutState) -> bool:
-    alignment = pour_alignment(env)
-    joints = env.state_vector()
-    return outlet_aligned(alignment) and pour_pose_reached(
-        float(env.oracle_state()["mug_pos"][2]),
-        float(env.oracle_state()["bottle_pos"][2]),
-        alignment["bottle_upright_cosine"], alignment["mouth_xy_error"],
-        state.pour_dwell_steps, float(joints[13]), float(joints[6]), table_supported=True,
-    )
+    return pour_succeeded(env, state.pour_dwell_steps)
 
 
 def _track_height(env, state: RolloutState, key: str) -> None:
@@ -217,8 +209,8 @@ SKILLS: dict[str, Skill] = {
     ),
     "pour_pose": Skill(
         "pour_pose", "pour", "task_table_setting.xml",
-        "Place the glass upright on the table and hold the bottle outlet centered one inch above its rim.",
-        "aloha_pour_pose_v3", run_pour_pose, ("left", "right"), "mug_pos",
+        "Place the glass upright and aim the pour stream inside its opening.",
+        "aloha_pour_stream_pose_v4", run_pour_pose, ("left", "right"), "mug_pos",
         gate_passed=False,
         on_step=_pour_step, check=_pour_ok,
     ),

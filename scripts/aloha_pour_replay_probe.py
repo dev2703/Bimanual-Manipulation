@@ -11,29 +11,42 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-import numpy as np
-
 from bimanual.data.scene_artifacts import scene_artifact_hashes
-from bimanual.experts.aloha_pour import (
-    _mouth, outlet_aligned, pour_alignment, pour_pose_reached, run_pour_pose,
-)
+from bimanual.experts.aloha_pour import run_pour_pose
+from bimanual.evaluation.pour_geometry import pour_alignment, pour_sample_valid, pour_succeeded
 from bimanual.skills.registry import get_skill
 
 
-def probe(seed: int) -> dict:
+def probe(seed: int, bottle_grasp_height: float = .075) -> dict:
     skill = get_skill("pour_pose")
     env = skill.make_env()
     actions = []
+    interference = {}
     try:
         env.reset(seed=seed, randomize_objects=True)
         step = env.step
 
         def capture(action):
             actions.append(action.copy())
-            return step(action)
+            observation = step(action)
+            pairs_this_step = set()
+            for contact in env.data.contact:
+                bodies = [env.model.body(env.model.geom_bodyid[g]).name for g in contact.geom]
+                if not any(body.startswith("left/") for body in bodies):
+                    continue
+                if not any(body in {"mug", "world"} for body in bodies):
+                    continue
+                names = [env.model.geom(g).name or body for g, body in zip(contact.geom, bodies)]
+                pair = " / ".join(sorted(names))
+                item = interference.setdefault(pair, {"control_steps": 0, "max_penetration_m": 0.})
+                item["max_penetration_m"] = max(item["max_penetration_m"], max(0., -float(contact.dist)))
+                pairs_this_step.add(pair)
+            for pair in pairs_this_step:
+                interference[pair]["control_steps"] += 1
+            return observation
 
         env.step = capture
-        expert = run_pour_pose(env)
+        expert = run_pour_pose(env, bottle_grasp_height=bottle_grasp_height)
     finally:
         env.close()
 
@@ -41,17 +54,11 @@ def probe(seed: int) -> dict:
     try:
         env.reset(seed=seed, randomize_objects=True)
         dwell = 0
-        best_tilt = best_error = 1.0
         for index, action in enumerate(actions):
             env.step(action)
             # Match the expert's final 25-control-step dwell window and metric.
             if index >= len(actions) - 25:
-                mouth, up = _mouth(env)
-                mug = env.oracle_state()["mug_pos"]
-                error = float(np.linalg.norm(mouth[:2] - mug[:2]))
-                best_tilt = min(best_tilt, float(up[2]))
-                best_error = min(best_error, error)
-                if outlet_aligned(pour_alignment(env)) and mug[2] > 0.02:
+                if pour_sample_valid(env):
                     dwell += 1
                 else:
                     dwell = 0
@@ -60,8 +67,7 @@ def probe(seed: int) -> dict:
         metrics = {
             "mug_height": float(state["mug_pos"][2]),
             "bottle_height": float(state["bottle_pos"][2]),
-            "tilt_cosine": best_tilt,
-            "mouth_xy_error": best_error,
+            **pour_alignment(env),
             "dwell_steps": dwell,
             "mug_opening": float(joints[13]),
             "bottle_opening": float(joints[6]),
@@ -70,12 +76,11 @@ def probe(seed: int) -> dict:
         return {
             "seed": seed,
             "expert": {k: v for k, v in asdict(expert).items() if k != "record"},
-            "action_only_success": (
-                outlet_aligned(pour_alignment(env)) and pour_pose_reached(**metrics)
-            ),
+            "action_only_success": pour_succeeded(env, dwell),
             "control_steps": len(actions),
             "replay": metrics,
             "alignment": pour_alignment(env),
+            "left_arm_interference": interference,
         }
     finally:
         env.close()
@@ -86,6 +91,7 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--seed-offset", type=int, default=0)
     parser.add_argument("--threshold", type=float, default=0.90)
+    parser.add_argument("--bottle-grasp-height", type=float, default=.075)
     parser.add_argument("--output", type=Path,
                         default=Path("outputs/gates/pour_action_replay_probe.json"))
     args = parser.parse_args()
@@ -96,12 +102,13 @@ def main() -> None:
     source_paths = (
         "bimanual/experts/aloha_pour.py", "bimanual/control/aloha_ik.py",
         "bimanual/experts/aloha_motion.py", "scripts/aloha_pour_replay_probe.py",
+        "bimanual/evaluation/pour_geometry.py",
     )
     source_hashes = {path: hashlib.sha256((root / path).read_bytes()).hexdigest()
                      for path in source_paths}
     for seed in range(args.seed_offset, args.seed_offset + args.episodes):
         try:
-            row = probe(seed)
+            row = probe(seed, args.bottle_grasp_height)
         except RuntimeError as exc:
             row = {"seed": seed, "expert": {"success": False},
                    "action_only_success": False, "error": str(exc)}
@@ -112,12 +119,14 @@ def main() -> None:
         "note": "Exact 30 Hz action replay without pose freezes; not a 10 Hz dataset audit.",
         "episodes": args.episodes,
         "seed_offset": args.seed_offset,
+        "bottle_grasp_height": args.bottle_grasp_height,
         "successes": successes,
         "success_rate": successes / args.episodes,
         "threshold": args.threshold,
         "passed": successes / args.episodes >= args.threshold,
         "scene_hashes": scene_artifact_hashes(get_skill("pour_pose").scene_path()),
         "source_expert": get_skill("pour_pose").source_expert,
+        "measurement": "ballistic_stream_pose_proxy; no simulated liquid",
         "source_hashes": source_hashes,
         "episodes_detail": rows,
     }

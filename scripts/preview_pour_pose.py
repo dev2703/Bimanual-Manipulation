@@ -15,8 +15,9 @@ import mujoco
 import numpy as np
 
 from bimanual.control.aloha_ik import AlohaIK, ARM_JOINTS, top_down_quaternion
-from bimanual.experts.aloha_pour import (
-    MOUTH_OFFSET, MUG_RIM_OFFSET, POUR_GAP, outlet_aligned, pour_alignment,
+from bimanual.experts.aloha_pour import POUR_GAP
+from bimanual.evaluation.pour_geometry import (
+    MOUTH_OFFSET, MUG_RIM_OFFSET, outlet_aligned, pour_alignment,
 )
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 
