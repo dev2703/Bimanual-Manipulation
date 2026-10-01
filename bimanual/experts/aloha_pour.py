@@ -7,7 +7,7 @@ claim that liquid moved. Bead transfer is a separate scene and metric.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import mujoco
 import numpy as np
@@ -17,7 +17,6 @@ from bimanual.experts.aloha_motion import CLOSED, OPEN, move_arm, step_recorded
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 
 MOUTH_OFFSET = 0.081
-TILT = 0.95  # radians, about 54 degrees from vertical
 POUR_GAP = 0.0254
 MUG_RIM_OFFSET = 0.030
 
@@ -60,6 +59,7 @@ class AlohaPourResult:
     mug_upright_cosine: float = float("nan")
     target_gap: float = POUR_GAP
     failure_reason: str | None = None
+    diagnostics: dict = field(default_factory=dict)
 
 
 def pour_pose_reached(
@@ -82,62 +82,11 @@ def pour_pose_reached(
     )
 
 
-def _tilted_quaternion(angle: float) -> np.ndarray:
-    """Tip the top-down grasp about the finger axis."""
-    cosine, sine = float(np.cos(angle)), float(np.sin(angle))
-    tip = np.array([[cosine, 0.0, sine], [0.0, 1.0, 0.0], [-sine, 0.0, cosine]])
-    top = np.array([[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]])
-    quaternion = np.empty(4)
-    mujoco.mju_mat2Quat(quaternion, (tip @ top).ravel())
-    return quaternion
-
-
-def _nudge_mouth_toward_mug(env, ik, record) -> None:
-    """Slide the tipped bottle so its mouth moves toward the mug, a few centimetres at a time."""
-    site_id = env.model.site("left/gripper").id
-    for _ in range(3):
-        mouth, _up = _mouth(env)
-        mug = env.oracle_state()["mug_pos"]
-        delta = mug[:3] - mouth
-        delta[2] = 0.0
-        if float(np.linalg.norm(delta)) < 0.04:
-            return
-        delta = np.clip(delta, -0.035, 0.035)
-        site = env.data.site_xpos[site_id].copy()
-        quaternion = np.empty(4)
-        mujoco.mju_mat2Quat(quaternion, env.data.site_xmat[site_id].reshape(3, 3).ravel().copy())
-        try:
-            move_arm(env, ik, site + delta, CLOSED, 24, "left", "MOUTH_NUDGE", record, quaternion)
-        except RuntimeError:
-            return
-
-
-def _pitch_left(env, delta: float, record, release: bool = True) -> None:
-    """Tip the left wrist with the position actuators so the bottle stays pinched."""
-    del release
-    start = env.data.ctrl.copy()
-    goal = start.copy()
-    goal[4] = float(np.clip(start[4] + delta, -1.6, 2.0))
-    for alpha in np.linspace(0.0, 1.0, 50):
-        action = start.copy()
-        action[:6] = (1.0 - alpha) * start[:6] + alpha * goal[:6]
-        action[6] = CLOSED
-        action[13] = CLOSED
-        step_recorded(env, action, "left", "BOTTLE_TILT", record)
-
-
 def _mouth(env: AlohaTableSettingEnv) -> tuple[np.ndarray, np.ndarray]:
     body = int(env.model.body("bottle").id)
     rotation = env.data.xmat[body].reshape(3, 3)
     up = rotation[:, 2].copy()
     return env.data.xpos[body].copy() + up * MOUTH_OFFSET, up
-
-
-def _carry(env, ik, arm: str, object_name: str, desired: np.ndarray, record, phase: str) -> None:
-    """Translate a grasped object by moving the gripper site by the same delta."""
-    obj = env.oracle_state()[f"{object_name}_pos"].copy()
-    site = env.data.site_xpos[env.model.site(f"{arm}/gripper").id].copy()
-    move_arm(env, ik, site + (np.asarray(desired) - obj), CLOSED, 60, arm, phase, record)
 
 
 def _level_mug(env, ik, record) -> None:
@@ -146,9 +95,7 @@ def _level_mug(env, ik, record) -> None:
         body = env.model.body("mug").id
         up = env.data.xmat[body].reshape(3, 3)[:, 2]
         angle = float(np.arccos(np.clip(up[2], -1, 1)))
-        current_center = env.data.xpos[body].copy()
-        translation = np.zeros(3)
-        if angle < .04 and np.linalg.norm(translation) < .002:
+        if angle < .04:
             return
         axis = np.cross(up, [0., 0., 1.])
         if np.linalg.norm(axis) < 1e-8:
@@ -161,7 +108,7 @@ def _level_mug(env, ik, record) -> None:
         rotation = rotation.reshape(3, 3)
         site_id = env.model.site("right/gripper").id
         center = env.data.xpos[body].copy()
-        target = center + translation + rotation @ (env.data.site_xpos[site_id] - center)
+        target = center + rotation @ (env.data.site_xpos[site_id] - center)
         mujoco.mju_mat2Quat(quaternion, (rotation @ env.data.site_xmat[site_id].reshape(3, 3)).ravel())
         try:
             move_arm(env, ik, target, CLOSED, 30, "right", "LEVEL_MUG", record, quaternion)
@@ -169,7 +116,7 @@ def _level_mug(env, ik, record) -> None:
             return
 
 
-def _align_outlet(env, ik, record, desired_rotation) -> str | None:
+def _align_outlet(env, ik, record, desired_rotation, diagnostics) -> str | None:
     """Approach the measured rim in small translations under joint control."""
     for _ in range(40):
         if env.mug_upright_cosine() < .98:
@@ -191,6 +138,8 @@ def _align_outlet(env, ik, record, desired_rotation) -> str | None:
         mujoco.mju_mat2Quat(quaternion, (correction @ env.data.site_xmat[site_id].reshape(3, 3)).ravel())
         solution = ik.solve(env.data.qpos, {"left": (target, quaternion)},
                             max_iters=240, position_tolerance=.005)
+        diagnostics["last_ik_position_error"] = solution.position_error["left"]
+        diagnostics["last_ik_orientation_error"] = solution.orientation_error["left"]
         if not solution.converged["left"]:
             return "outlet_target_unreachable"
         start = env.data.ctrl.copy()
@@ -278,7 +227,8 @@ def run_pour_pose(
         quaternion = np.empty(4)
         mujoco.mju_mat2Quat(quaternion, (correction @ env.data.site_xmat[site_id].reshape(3, 3)).ravel())
         move_arm(env, ik, target, CLOSED, 35, "left", "BOTTLE_TILT", record, quaternion)
-    failure_reason = _align_outlet(env, ik, record, desired_rotation)
+    diagnostics = {}
+    failure_reason = _align_outlet(env, ik, record, desired_rotation, diagnostics)
     dwell = 0
     best_tilt = 1.0
     best_error = 1.0
@@ -300,6 +250,15 @@ def run_pour_pose(
     bottle = env.oracle_state()["bottle_pos"]
     state = env.state_vector()
     alignment = pour_alignment(env)
+    contacts = set()
+    for contact in env.data.contact:
+        bodies = [env.model.body(env.model.geom_bodyid[g]).name for g in contact.geom]
+        if "bottle" in bodies:
+            contacts.update(name for name in bodies if name.startswith("left/"))
+    diagnostics["bottle_contact_bodies"] = sorted(contacts)
+    diagnostics["bottle_has_two_finger_contacts"] = all(
+        f"left/{finger}_finger_link" in contacts for finger in ("left", "right")
+    )
     success = outlet_aligned(alignment) and pour_pose_reached(
         float(mug[2]), float(bottle[2]), best_tilt, best_error, dwell,
         float(state[13]), float(state[6]), table_supported=True,
@@ -309,4 +268,5 @@ def run_pour_pose(
         alignment["mouth_xy_error"], dwell, record or [],
         alignment["rim_gap"], alignment["mug_upright_cosine"],
         POUR_GAP, None if success else (failure_reason or "dwell_alignment_failed"),
+        diagnostics,
     )

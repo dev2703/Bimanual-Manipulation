@@ -6,6 +6,7 @@ This is a prerequisite diagnostic, not the recorded 10 Hz dataset replay audit.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import asdict
 from pathlib import Path
@@ -91,8 +92,19 @@ def main() -> None:
     if args.episodes < 1:
         parser.error("--episodes must be positive")
     rows = []
+    root = Path(__file__).resolve().parents[1]
+    source_paths = (
+        "bimanual/experts/aloha_pour.py", "bimanual/control/aloha_ik.py",
+        "bimanual/experts/aloha_motion.py", "scripts/aloha_pour_replay_probe.py",
+    )
+    source_hashes = {path: hashlib.sha256((root / path).read_bytes()).hexdigest()
+                     for path in source_paths}
     for seed in range(args.seed_offset, args.seed_offset + args.episodes):
-        row = probe(seed)
+        try:
+            row = probe(seed)
+        except RuntimeError as exc:
+            row = {"seed": seed, "expert": {"success": False},
+                   "action_only_success": False, "error": str(exc)}
         rows.append(row)
         print(json.dumps(row), flush=True)
     successes = sum(row["expert"]["success"] and row["action_only_success"] for row in rows)
@@ -105,6 +117,8 @@ def main() -> None:
         "threshold": args.threshold,
         "passed": successes / args.episodes >= args.threshold,
         "scene_hashes": scene_artifact_hashes(get_skill("pour_pose").scene_path()),
+        "source_expert": get_skill("pour_pose").source_expert,
+        "source_hashes": source_hashes,
         "episodes_detail": rows,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
