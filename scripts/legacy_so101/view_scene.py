@@ -3,7 +3,7 @@
 macOS needs Cocoa on the main thread, so this must be run with the
 bundled `mjpython` binary, not plain `python`:
 
-    .venv/bin/mjpython scripts/view_scene.py
+    .venv/bin/mjpython scripts/legacy_so101/view_scene.py
 
 Drag joints with ctrl+right-click, orbit with left-drag, zoom with
 scroll. Close the window to exit.

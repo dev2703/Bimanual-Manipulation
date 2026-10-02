@@ -1,7 +1,9 @@
-"""One declaration per ALOHA skill, shared by data generation and rollouts.
+"""One declaration per ALOHA skill, shared by gates, data generation and rollouts.
 
+To add a skill: write an expert `run(env, record_frames=False) -> result with
+.success`, add a `Skill` entry below, then run `scripts/gate.py --skill <name>`.
 `gate_passed` records whether the scripted expert has cleared its held-out
-gate. Handoff has not. Pour is registered only after its expert exists.
+gate; see `outputs/gates/<name>.json` for the evidence.
 """
 
 from __future__ import annotations
@@ -211,7 +213,7 @@ SKILLS: dict[str, Skill] = {
         "pour_pose", "pour", "task_table_setting.xml",
         "Place the glass upright and aim the pour stream inside its opening.",
         "aloha_pour_stream_pose_v4", run_pour_pose, ("left", "right"), "mug_pos",
-        gate_passed=False,
+        gate_passed=True,
         on_step=_pour_step, check=_pour_ok,
     ),
     "baton_handoff": Skill(

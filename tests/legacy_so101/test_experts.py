@@ -6,7 +6,7 @@ These need a live BimanualTableEnv + BimanualIK (unlike
 tests/test_control_and_predicates.py's pure-logic tests), so they're
 slower and fewer in number -- focused on behavioral contracts and known
 edge cases rather than success-rate measurement (that's
-scripts/expert_success.py's job, run manually per docs/decisions.md).
+scripts/legacy_so101/expert_success.py's job, run manually per docs/decisions.md).
 """
 
 from __future__ import annotations

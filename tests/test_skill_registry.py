@@ -7,8 +7,8 @@ from bimanual.skills.registry import RolloutState, SKILLS, get_skill
 def test_registry_covers_the_dinner_skills():
     assert get_skill("mug_pick_place").gate_passed
     assert get_skill("baton_handoff").gate_passed
-    # The stricter one-inch outlet alignment has not passed a physical gate.
-    assert not get_skill("pour_pose").gate_passed
+    # Passed under the ballistic stream proxy (no simulated liquid).
+    assert get_skill("pour_pose").gate_passed
     try:
         get_skill("missing")
     except KeyError as exc:

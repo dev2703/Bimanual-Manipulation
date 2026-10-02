@@ -1,7 +1,7 @@
 """Phase 3 gate measurement (docs/phases.md): per-skill and composed
 success over N seeds at randomization level L1.
 
-Run with: uv run python scripts/expert_success.py
+Run with: uv run python scripts/legacy_so101/expert_success.py
 """
 
 from __future__ import annotations

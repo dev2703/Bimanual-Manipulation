@@ -32,7 +32,7 @@ def test_same_seed_is_deterministic():
 
 
 def test_reachability_study_passes():
-    from scripts.reachability_study import check_targets_reachable, sample_reachable_points
+    from scripts.legacy_so101.reachability_study import check_targets_reachable, sample_reachable_points
     from bimanual.legacy_so101.sim.scene_builder import CABINET_POS, REGIONS, TABLE_HEIGHT
 
     rng = np.random.default_rng(0)

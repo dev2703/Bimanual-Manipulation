@@ -1,93 +1,90 @@
-An experimental MuJoCo system for setting a dinner table with two ALOHA 2 arms.
-The combined scene now supports a physical drawer-open, handled-plate placement,
-mug placement, and bottle-lift sequence. Cutlery retrieval, inter-arm handoff,
-and pouring remain research goals.
+# Bimanual dinner-table manipulation (MuJoCo, ALOHA 2)
 
-Preview the audience-facing ALOHA dinner-table scene on macOS:
+A simulated Physical AI system in which two ALOHA 2 arms set a dinner table:
+open a drawer, place the plate, fork, spoon and glass, hand an object between
+arms, and pour into the glass. Every skill has a scripted contact-based expert
+with a held-out gate; those experts produce the datasets for learned policies
+(ACT, SmolVLA). SO-101 code is archived under `bimanual/legacy_so101`.
 
-```bash
-.venv/bin/mjpython scripts/view_aloha_scene.py --seed 100000
-```
-
-Watch the first physical dinner skill set the mug at its place setting:
+## Quick start
 
 ```bash
-.venv/bin/mjpython scripts/view_aloha_mug.py --seed 100000
+make setup          # uv sync
+make test           # full test suite
+make skills         # registered skills and gate status
+make view SKILL=drawer_open           # watch an expert (macOS: uses mjpython)
+make gate SKILL=plate_pick_place      # 50-episode held-out gate -> outputs/gates/
+make dinner-gate                      # full dinner sequence gate
+make help           # every target
 ```
 
-The separate handled serving-plate scene has a contact-only expert that passed
-50/50 held-out lift, carry, release, and upright-placement trials at ±1.5 cm
-object jitter. The original plain plate has not passed that gate. Watch or
-rerun the handled-plate gate with:
+Rendering tests need an OpenGL context; run them outside restricted sandboxes.
 
-```bash
-.venv/bin/mjpython scripts/view_aloha_plate.py --seed 100000
-.venv/bin/python scripts/aloha_plate_gate.py --episodes 50 --seed-offset 100000
-```
+## Status
 
-Plate recordings use `--skill plate_pick_place` in
-`bimanual.experts.generate_aloha_table` and replay with the same `--skill`
-option in `bimanual.data.replay_aloha_table`. The plate scene and mug ACT scene
-have separate artifact hashes; their data should not be mixed.
+| Gate | Result | Notes |
+|---|---|---|
+| Drawer, plate, mug, bottle, block, plate recovery | marked passed in the registry | earlier 50-episode gates; rerun with `make gate SKILL=...` |
+| Fork and spoon (`scripts/aloha_cutlery_gate.py`) | 50/50 | |
+| Baton handoff | 50/50 | carrier alternates left/right by seed |
+| Pour | 50/50 | ballistic stream proxy, see below |
+| Dinner sequence | 50/50 on two seed sets | drawer, plate, fork, spoon, mug, handoff, pour |
 
-The 50-episode plate training split and 10-episode validation split were
-audited and replayed. Recheck them with `make audit-plate replay-plate`.
-A matching validation split can be regenerated with:
+The pour metric checks that a 4 mm stream leaving the bottle's lower lip at
+0–0.2 m/s lands inside the glass opening for every sampled exit speed, with
+the glass upright and no finger–glass contact, for 20 consecutive steps. No
+liquid is simulated (`bimanual/evaluation/pour_geometry.py`). The dinner
+sequence still uses scripted staging between stages: neutral arm resets and
+baton repositioning.
 
-```bash
-.venv/bin/python -m bimanual.experts.generate_aloha_table \
-  --skill plate_pick_place --split val --episodes 10
-```
+Not done yet: audited 37-D datasets for every skill, per-skill ACT baselines,
+the 14-D vs 37-D ablation, and a learned end-to-end dinner policy.
 
-An isolated drawer scene now has clearance behind its physical handle. Its
-contact-only expert passed 50/50 held-out open-and-release trials, with gripper
-contact on the handle measured during each pull. The original mug scene's
-near-flush handle does not pass that contact gate. Preview and retest it with:
+## Layout
 
-```bash
-.venv/bin/mjpython scripts/view_aloha_drawer.py --seed 100000
-.venv/bin/python scripts/aloha_drawer_gate.py --episodes 50 --seed-offset 100000
-```
+| Path | Contents |
+|---|---|
+| `bimanual/skills/registry.py` | One `Skill` per task: scene, expert, instruction, success check |
+| `bimanual/experts/` | Scripted contact experts (`aloha_*.py`) and dataset generation |
+| `bimanual/evaluation/` | Gates, success predicates, pour geometry, composed eval |
+| `bimanual/sim/`, `bimanual/control/` | MuJoCo environments, IK |
+| `bimanual/policy/`, `bimanual/training/` | Policy adapters, training configs, ROCm launcher |
+| `bimanual/data/` | Dataset audit, replay, `DATA_INDEX.json` verification |
+| `scripts/` | CLIs: `gate.py`, `view.py`, `eval_policy.py`, sequence and pour gates |
+| `assets/robots/aloha/` | Scenes (`task_*.xml`) |
 
-Drawer recordings use `--skill drawer_open`; `make audit-drawer replay-drawer`
-checks the completed 50-episode training split. Both skills have separate
-10-episode validation splits. Their recording scenes remain distinct from the
-combined scene, so policy training must retain each dataset's scene identity.
+To add a skill: write an expert `run(env, record_frames=False)` returning a
+result with `.success`, register it in `bimanual/skills/registry.py`, then run
+`make gate SKILL=<name>`.
 
-The combined dinner scene passed 50/50 held-out trials for each atomic skill
-and 50/50 for the scripted sequence, retaining the open drawer, placed plate,
-and placed mug after lifting the bottle. These results establish physical
-feasibility for those four steps, not a learned end-to-end dinner policy:
+## Datasets
 
-```bash
-.venv/bin/python scripts/aloha_combined_atomic_gate.py --episodes 50
-.venv/bin/python scripts/aloha_combined_sequence_gate.py --episodes 50
-```
-
-The dinner dataset writer finalizes completed episodes individually. To
-continue a cleanly interrupted collection, rerun it with the same skill,
-split, root, and episode target plus `--resume`. For example, after stopping
-the plate collection:
+Recordings are written per skill and finalize each episode individually:
 
 ```bash
 .venv/bin/python -m bimanual.experts.generate_aloha_table \
-  --skill plate_pick_place --split train --episodes 50 --resume
+  --skill plate_pick_place --split train --episodes 50 [--resume]
+make audit replay SKILL=plate_pick_place
 ```
+
+Each skill's scene has its own artifact hash; keep datasets from different
+scenes separate when training.
+
+## Training and evaluation reference
 
 For the dinner ACT baseline, audit and replay the generated mug data, then
 train with the fixed 20-step chunk and 8-step execution prefix:
 
 ```bash
-make audit-mug replay-mug
+make audit replay SKILL=mug_pick_place
 .venv/bin/lerobot-train --config_path=bimanual/training/configs/act_aloha_mug.yaml
 ```
 
 Run a trained dinner-task ACT checkpoint with the interactive MuJoCo viewer:
 
 ```bash
-.venv/bin/mjpython scripts/view_aloha_act.py \
-  outputs/act_aloha_mug_full/checkpoints/020000/pretrained_model \
-  --task mug_pick_place --seed 100000 --device mps
+.venv/bin/mjpython scripts/view.py --skill mug_pick_place --seed 100000 \
+  --checkpoint outputs/act_aloha_mug_full/checkpoints/020000/pretrained_model
 ```
 
 The checkpoint above has completed 20,000 of the planned 100,000 updates. It
@@ -141,9 +138,7 @@ HF_HOME=outputs/.cache/hf .venv/bin/python -m bimanual.training.train_aloha_veri
 
 An opt-in 37-D cooperative ALOHA state adds relative gripper pose, both EE
 twists, and gripper openings. Existing 14-D ACT checkpoints retain their
-original state contract. A contact-only baton handoff prototype is present,
-but has **not** passed its support-transfer gate; pouring remains open.
-For recovery, a 3.5 cm plate move after approach yielded 50/50 physical
+original state contract. For recovery, a 3.5 cm plate move after approach yielded 50/50 physical
 expert successes when the grasp was replanned and 0/50 with a stale grasp:
 
 ```bash
@@ -227,6 +222,9 @@ It waits for `BACKUP_VERIFIED`, validates remote SHA-256/Git blob hashes, and
 writes `HUGGINGFACE_VERIFIED` and `huggingface_status.json` beside the backup.
 Credentials stay with the local Hub SDK. A local Mac notification is requested
 after all uploads succeed; keep the watcher and network connection running.
+
+## Problem statement
+
 
 Problem: an end-to-end simulated Physical AI system for bimanual manipulation for setting up a dinner table.
 

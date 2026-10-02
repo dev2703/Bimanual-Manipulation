@@ -302,7 +302,7 @@ def build_bimanual_table_mjcf(cfg: SceneConfig | None = None, show_regions: bool
     """show_regions controls whether the (physics-inert) placement-tolerance
     markers from REGIONS are emitted. Leave True for training/eval so
     oracle_predicates.py's targets exist as sites; pass False for a clean
-    demo/presentation render (e.g. scripts/view_scene.py)."""
+    demo/presentation render (e.g. scripts/legacy_so101/view_scene.py)."""
     cfg = cfg or SceneConfig()
     overrides = cfg.object_rgba_overrides or {}
     plate_rgba = " ".join(str(v) for v in overrides.get("plate", (0.9, 0.9, 0.9, 1.0)))

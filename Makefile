@@ -1,68 +1,54 @@
-.PHONY: setup test demo gen-data mug-gate mug-demo audit-mug replay-mug plate-gate plate-demo audit-plate replay-plate drawer-gate drawer-demo audit-drawer replay-drawer verify-data clean
+.PHONY: help setup test skills gate dinner-gate pour-gate view scene demo gen-data audit replay verify-data clean
 
 UV := uv
+MJPYTHON := .venv/bin/mjpython
+SKILL ?= mug_pick_place
+EPISODES ?= 50
+SEED ?= 100000
+BUCKET = $(shell $(UV) run python -c "from bimanual.skills.registry import get_skill; print(get_skill('$(SKILL)').bucket)")
+DATA ?= outputs/aloha_$(BUCKET)_train
 
-setup:
+help:  ## List targets. Most take SKILL=<name> (see `make skills`).
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
+
+setup:  ## Install the locked environment.
 	$(UV) sync
 
-test:
+test:  ## Run the full test suite.
 	$(UV) run pytest tests -q
 
-demo:
-	$(UV) run python scripts/render_aloha_expert.py --task combined --seed 0
+skills:  ## List registered skills and their gate status.
+	$(UV) run python scripts/gate.py --list
 
-gen-data:
-	$(UV) run python -m bimanual.experts.generate_aloha_table --skill mug_pick_place --episodes 1 --root outputs/aloha_gen_data_smoke --overwrite
-
-mug-gate:
-	$(UV) run python scripts/aloha_mug_gate.py --episodes 50
-
-mug-demo:
-	.venv/bin/mjpython scripts/view_aloha_mug.py --seed 100000
-
-audit-mug:
-	$(UV) run python -m bimanual.data.audit outputs/aloha_mug_train
-
-replay-mug:
-	$(UV) run python -m bimanual.data.replay_aloha_table outputs/aloha_mug_train
-
-plate-gate:
-	$(UV) run python scripts/aloha_plate_gate.py --episodes 50 --seed-offset 100000
-
-plate-demo:
-	.venv/bin/mjpython scripts/view_aloha_plate.py --seed 100000
-
-audit-plate:
-	$(UV) run python -m bimanual.data.audit outputs/aloha_plate_train
-
-replay-plate:
-	$(UV) run python -m bimanual.data.replay_aloha_table outputs/aloha_plate_train --skill plate_pick_place
-
-drawer-gate:
-	$(UV) run python scripts/aloha_drawer_gate.py --episodes 50 --seed-offset 100000
-
-drawer-demo:
-	.venv/bin/mjpython scripts/view_aloha_drawer.py --seed 100000
-
-audit-drawer:
-	$(UV) run python -m bimanual.data.audit outputs/aloha_drawer_train
-
-replay-drawer:
-	$(UV) run python -m bimanual.data.replay_aloha_table outputs/aloha_drawer_train --skill drawer_open
-
-verify-data:
-	$(UV) run python -m bimanual.data.verify_index
-
-SKILL ?= mug_pick_place
-EPISODES ?= 10
-gate:
+gate:  ## Held-out scripted-expert gate: make gate SKILL=plate_pick_place EPISODES=50
 	$(UV) run python scripts/gate.py --skill $(SKILL) --episodes $(EPISODES)
 
-audit:
-	$(UV) run python -m bimanual.data.audit outputs/aloha_$$($(UV) run python -c "from bimanual.skills.registry import get_skill; print(get_skill('$(SKILL)').bucket)")_train
+dinner-gate:  ## Full dinner sequence gate (drawer, plate, cutlery, mug, handoff, pour).
+	$(UV) run python scripts/aloha_combined_sequence_gate.py --episodes $(EPISODES)
 
-replay:
-	$(UV) run python -m bimanual.data.replay_aloha_table outputs/aloha_$$($(UV) run python -c "from bimanual.skills.registry import get_skill; print(get_skill('$(SKILL)').bucket)")_train --skill $(SKILL)
+pour-gate:  ## Standalone pour gate with action-only replay.
+	$(UV) run python scripts/aloha_pour_replay_probe.py --episodes $(EPISODES) --output outputs/gates/pour_stream_pose_50.json
 
-clean:
+view:  ## Watch the scripted expert: make view SKILL=drawer_open SEED=100000
+	$(MJPYTHON) scripts/view.py --skill $(SKILL) --seed $(SEED)
+
+scene:  ## Open a skill's scene without acting.
+	$(MJPYTHON) scripts/view.py --skill $(SKILL) --seed $(SEED) --scene-only
+
+demo:  ## Render the combined expert to video.
+	$(UV) run python scripts/render_aloha_expert.py --task combined --seed 0
+
+gen-data:  ## Record a one-episode smoke dataset for SKILL.
+	$(UV) run python -m bimanual.experts.generate_aloha_table --skill $(SKILL) --episodes 1 --root outputs/aloha_gen_data_smoke --overwrite
+
+audit:  ## Audit a recorded dataset (DATA defaults to outputs/aloha_<bucket>_train).
+	$(UV) run python -m bimanual.data.audit $(DATA)
+
+replay:  ## Replay a recorded dataset's actions and check success.
+	$(UV) run python -m bimanual.data.replay_aloha_table $(DATA) --skill $(SKILL)
+
+verify-data:  ## Check datasets against DATA_INDEX.json.
+	$(UV) run python -m bimanual.data.verify_index
+
+clean:  ## Remove caches and smoke outputs.
 	rm -rf .pytest_cache **/__pycache__ scripts/__pycache__ outputs/*.mp4 outputs/*_smoke outputs/*_smoke.log
