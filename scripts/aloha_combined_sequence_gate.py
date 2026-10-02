@@ -44,6 +44,13 @@ def _handoff(env):
     return run_baton_handoff(env, carrier=carrier)
 
 
+# The pour scene's glass spot lies inside the open drawer here, and the left arm
+# cannot reach the glass's place site. Pour in front of the plate instead.
+DINNER_GLASS_TARGET = np.array([0.0, -0.23, 0.033])
+DINNER_MUG_ANCHOR = DINNER_GLASS_TARGET + [0.0, 0.0, 0.21]
+DINNER_RIGHT_CLEAR = np.array([0.25, -0.15, 0.20])
+
+
 def _pour(env):
     # Staging, not a learned skill: set the handed-off baton on the drawer
     # floor and return both arms to neutral so the pour does not start from
@@ -58,7 +65,8 @@ def _pour(env):
     mujoco.mj_forward(env.model, env.data)
     for _ in range(30):
         env.step(env.data.ctrl.copy())
-    return run_pour_pose(env)
+    return run_pour_pose(env, glass_target=DINNER_GLASS_TARGET,
+                         mug_anchor=DINNER_MUG_ANCHOR, right_clear=DINNER_RIGHT_CLEAR)
 
 
 SEQUENCE = (
@@ -115,7 +123,7 @@ def main() -> None:
             plate_site = env.data.site_xpos[env.model.site("plate_region").id]
             fork_site = env.data.site_xpos[env.model.site("fork_region").id]
             spoon_site = env.data.site_xpos[env.model.site("spoon_region").id]
-            # Pour lifts the mug again, so the mug is not required to stay on its place site.
+            # Pour moves the glass to the pour spot, so it is not required to stay on its place site.
             retention = {
                 "drawer": bool(float(state["drawer_opening"][0]) > 0.11),
                 "plate": bool(np.linalg.norm(state["plate_pos"][:2] - plate_site[:2]) < 0.04),
@@ -155,10 +163,12 @@ def main() -> None:
         "scene_hashes": scene_artifact_hashes(scene),
         "source_hashes": {str(path.relative_to(scene.parents[3])): file_sha256(path)
                           for path in [Path(__file__).resolve(),
+                                       scene.parents[3] / "bimanual/evaluation/pour_geometry.py",
                                        *sorted((scene.parents[3] / "bimanual/experts").glob("aloha_*.py"))]},
+        "measurement": {"pour": "ballistic_stream_pose_proxy; no simulated liquid"},
         "scripted_interventions": ["neutral arm resets before handoff and pour",
                                    "baton repositioning before handoff and pour"],
-        "action_only_replay_report": "outputs/gates/pour_action_replay_probe.json",
+        "standalone_pour_report": "outputs/gates/pour_stream_pose_50.json",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2) + "\n")

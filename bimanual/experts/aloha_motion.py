@@ -48,9 +48,11 @@ def move_arm(
     phase: str,
     record: list[dict] | None,
     quaternion: np.ndarray | None = None,
+    position_tolerance: float = 3e-3,
 ) -> None:
     orientation = top_down_quaternion() if quaternion is None else np.asarray(quaternion, dtype=np.float64)
-    result = ik.solve(env.data.qpos, {arm: (target, orientation)})
+    result = ik.solve(env.data.qpos, {arm: (target, orientation)},
+                      position_tolerance=position_tolerance)
     if not result.converged[arm]:
         raise RuntimeError(
             f"ALOHA IK failed: position={result.position_error[arm]:.4f}, "

@@ -18,7 +18,8 @@ import numpy as np
 
 from bimanual.control.aloha_ik import AlohaIK
 from bimanual.experts.aloha_motion import CLOSED
-from bimanual.experts.aloha_pour import _mouth, run_pour_pose
+from bimanual.evaluation.pour_geometry import bottle_outlet
+from bimanual.experts.aloha_pour import run_pour_pose
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 
 BEADS = tuple(f"bead_{index}" for index in range(6))
@@ -109,7 +110,7 @@ def _align_bottle_over_mug(env) -> None:
     """Put the tilted bottle's physical outlet above the held mug opening."""
     ik = AlohaIK(env.model)
     for _ in range(3):
-        _unused, bottle_up = _mouth(env)
+        _unused, bottle_up = bottle_outlet(env)
         mug_body = int(env.model.body("mug").id)
         mug = env.data.xpos[mug_body].copy()
         mug_up = env.data.xmat[mug_body].reshape(3, 3)[:, 2]

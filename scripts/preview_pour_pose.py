@@ -15,13 +15,14 @@ import mujoco
 import numpy as np
 
 from bimanual.control.aloha_ik import AlohaIK, ARM_JOINTS, top_down_quaternion
-from bimanual.experts.aloha_pour import POUR_GAP
 from bimanual.evaluation.pour_geometry import (
     MOUTH_OFFSET, MUG_RIM_OFFSET, outlet_aligned, pour_alignment,
 )
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets/robots/aloha"
+# One-inch illustrative gap for the static preview; not a pass criterion.
+POUR_GAP = .0254
 
 
 def preview_env():
