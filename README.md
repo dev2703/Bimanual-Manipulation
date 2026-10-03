@@ -25,7 +25,7 @@ Rendering tests need an OpenGL context; run them outside restricted sandboxes.
 | Gate | Result | Notes |
 |---|---|---|
 | Drawer, plate, mug, bottle, block, plate recovery | marked passed in the registry | earlier 50-episode gates; rerun with `make gate SKILL=...` |
-| Fork and spoon (`scripts/aloha_cutlery_gate.py`) | 50/50 | |
+| Fork and spoon | 50/50 | drawer is opened as an unrecorded setup step |
 | Baton handoff | 50/50 | carrier alternates left/right by seed |
 | Pour | 50/50 | ballistic stream proxy, see below |
 | Dinner sequence | 50/50 on two seed sets | drawer, plate, fork, spoon, mug, handoff, pour |
@@ -35,11 +35,11 @@ Rendering tests need an OpenGL context; run them outside restricted sandboxes.
 | Path | Contents |
 |---|---|
 | `bimanual/skills/registry.py` | One `Skill` per task: scene, expert, instruction, success check |
-| `bimanual/experts/` | Scripted contact experts (`aloha_*.py`) and dataset generation |
+| `bimanual/experts/` | Scripted contact experts (`aloha_*.py`) |
 | `bimanual/evaluation/` | Gates, success predicates, pour geometry, composed eval |
 | `bimanual/sim/`, `bimanual/control/` | MuJoCo environments, IK |
 | `bimanual/policy/`, `bimanual/training/` | Policy adapters, training configs, ROCm launcher |
-| `bimanual/data/` | Dataset audit, replay, `DATA_INDEX.json` verification |
+| `bimanual/data/` | Dataset recording, audit, replay, `DATA_INDEX.json` verification |
 | `scripts/` | CLIs: `gate.py`, `view.py`, `eval_policy.py`, sequence and pour gates |
 | `assets/robots/aloha/` | Scenes (`task_*.xml`) |
 
@@ -52,7 +52,7 @@ result with `.success`, register it in `bimanual/skills/registry.py`, then run
 Recordings are written per skill and finalize each episode individually:
 
 ```bash
-.venv/bin/python -m bimanual.experts.generate_aloha_table \
+.venv/bin/python -m bimanual.data.record \
   --skill plate_pick_place --split train --episodes 50 [--resume]
 make audit replay SKILL=plate_pick_place
 ```

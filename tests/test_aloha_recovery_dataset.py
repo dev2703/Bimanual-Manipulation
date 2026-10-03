@@ -1,6 +1,8 @@
 import numpy as np
 
-from bimanual.experts.generate_aloha_table import make_features, write_episode
+from bimanual.data.record import make_features, write_episode
+
+OBJECTS = ("plate", "mug", "bottle", "fork", "spoon")
 
 
 class _Dataset:
@@ -16,20 +18,20 @@ class _Dataset:
 
 
 def test_recovery_schema_marks_one_event_after_approach():
-    features = make_features(recovery=True)
+    features = make_features(OBJECTS, recovery=True)
     assert "privileged.failure_event" in features
-    assert "privileged.failure_event" not in make_features()
+    assert "privileged.failure_event" not in make_features(OBJECTS)
     dataset = _Dataset()
     observation = {"observation.state": np.zeros(14, dtype=np.float32),
                    "observation.velocity": np.zeros(14, dtype=np.float32)}
-    oracle = {f"{name}_pos": np.zeros(3) for name in ("plate", "mug", "bottle", "fork", "spoon")}
+    oracle = {f"{name}_pos": np.zeros(3) for name in OBJECTS}
     oracle["drawer_opening"] = np.zeros(1)
     frames = {name: np.zeros((2, 2, 3), dtype=np.uint8)
               for name in ("overhead_cam", "wrist_cam_left", "wrist_cam_right")}
-    record = [dict(observation=observation, oracle=oracle, frames=frames,
+    record = [dict(observation=observation, oracle=oracle, frames=frames, cooperative_state=np.zeros(37),
                    action=np.ones(14), phase=phase, arm="right", timestamp=0.1 * i)
               for i, phase in enumerate(("APPROACH", "APPROACH", "PRE_GRASP", "GRASP"))]
-    write_episode(dataset, record, "Place the plate", 5, recovery=True,
+    write_episode(dataset, record, "Place the plate", 5, OBJECTS,
                   perturbation_xy=np.array([0.02, -0.02]))
     assert dataset.saved
     assert [float(f["privileged.failure_event"][0]) for f in dataset.frames] == [0, 0, 1, 0]

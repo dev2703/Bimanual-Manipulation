@@ -18,11 +18,14 @@ def _git_commit() -> str:
 
 
 def reset_for_skill(skill: Skill, env, seed: int, jitter: float) -> None:
+    """Reset to the seeded start of `skill`, including any declared precondition."""
     if skill.randomize == "block":
         env.reset(seed=seed, randomize_block=True)
     else:
         env.reset(seed=seed, randomize_objects=True, position_jitter=jitter)
     env.gate_seed = seed
+    if skill.setup is not None:
+        skill.setup(env)
 
 
 def run_gate(skill: Skill, episodes: int, seed_offset: int, jitter: float, threshold: float) -> dict:

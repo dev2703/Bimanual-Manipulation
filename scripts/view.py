@@ -16,7 +16,7 @@ import mujoco.viewer
 
 from bimanual.evaluation.skill_gate import reset_for_skill
 from bimanual.policy.aloha_act_runner import run_aloha_act_episode
-from bimanual.policy.registry import load_policy
+from bimanual.policy.registry import POLICY_KINDS, load_policy, uses_language
 from bimanual.sim.aloha_env import CONTROL_HZ
 from bimanual.skills.registry import SKILLS, get_skill
 
@@ -36,7 +36,7 @@ def main() -> None:
     parser.add_argument("--skill", default="mug_pick_place", choices=sorted(SKILLS))
     parser.add_argument("--seed", type=int, default=100_000)
     parser.add_argument("--checkpoint", help="run this policy checkpoint instead of the scripted expert")
-    parser.add_argument("--policy", choices=("act", "smolvla", "pi05", "compact"), default="act")
+    parser.add_argument("--policy", choices=POLICY_KINDS, default="act")
     parser.add_argument("--device", default="mps")
     parser.add_argument("--scene-only", action="store_true", help="open the scene without acting")
     args = parser.parse_args()
@@ -53,13 +53,13 @@ def main() -> None:
 
             env.after_step = sync_viewer
             if args.checkpoint:
-                policy, preprocessor, postprocessor, instruction = load_policy(
-                    args.policy, args.checkpoint, args.device, prefix=skill.default_prefix, skill=skill.name,
+                policy, preprocessor, postprocessor = load_policy(
+                    args.policy, args.checkpoint, args.device, prefix=skill.default_prefix,
                 )
                 result = run_aloha_act_episode(
                     env, policy, preprocessor=preprocessor, postprocessor=postprocessor,
-                    device=args.device, max_policy_steps=skill.max_policy_steps,
-                    skill=skill, instruction=instruction,
+                    device=args.device, max_policy_steps=skill.max_policy_steps, skill=skill,
+                    instruction=skill.instruction_for(args.seed) if uses_language(args.policy) else None,
                 )
                 print(f"{skill.name} policy success={result.success}")
             elif not args.scene_only:

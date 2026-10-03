@@ -17,6 +17,7 @@ from bimanual.experts.aloha_mug import run_mug_pick_place
 from bimanual.experts.aloha_plate import run_plate_pick_place
 from bimanual.experts.aloha_pour import run_pour_pose
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
+from bimanual.skills.registry import handoff_carrier
 from bimanual.data.scene_artifacts import scene_artifact_hashes
 from bimanual.evaluation.skill_gate import _git_commit
 from bimanual.policy.types import file_sha256
@@ -40,8 +41,7 @@ def _place_baton(env) -> None:
 
 def _handoff(env):
     _place_baton(env)
-    carrier = "left" if int(getattr(env, "gate_seed", 0)) % 2 == 0 else "right"
-    return run_baton_handoff(env, carrier=carrier)
+    return run_baton_handoff(env, carrier=handoff_carrier(int(getattr(env, "gate_seed", 0))))
 
 
 # The pour scene's glass spot lies inside the open drawer here, and the left arm

@@ -49,6 +49,32 @@ def plate_placed(
     )
 
 
+def cutlery_placed(
+    initial: np.ndarray, final: np.ndarray, target: np.ndarray, *,
+    peak_height: float, gripper_opening: float,
+) -> bool:
+    """Require a lift, a low release beside the plate and an open gripper."""
+    return bool(
+        peak_height > initial[2] + 0.07
+        and np.linalg.norm(final[:2] - target[:2]) < 0.035
+        and final[2] < 0.035
+        and gripper_opening > 0.03
+    )
+
+
+def handoff_succeeded(
+    initial_height: float, peak_height: float, after_release_height: float,
+    final_height: float, carrier_opening: float, receiver_opening: float,
+    receiver_contact_steps: int,
+) -> bool:
+    """Require receiver contact, carrier release, and retained support."""
+    return bool(peak_height > initial_height + 0.07
+                and receiver_contact_steps >= 20
+                and after_release_height > initial_height + 0.06
+                and final_height > initial_height + 0.06
+                and carrier_opening > 0.03 and receiver_opening < 0.02)
+
+
 def drawer_opened(
     initial_opening: float,
     peak_opening: float,

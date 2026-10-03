@@ -11,15 +11,16 @@ import argparse
 import json
 from pathlib import Path
 
-from bimanual.policy.registry import load_policy
+from bimanual.evaluation.skill_gate import reset_for_skill
+from bimanual.policy.registry import POLICY_KINDS, load_policy, uses_language
 from bimanual.policy.aloha_act_runner import run_aloha_act_episode
-from bimanual.skills.registry import get_skill
+from bimanual.skills.registry import SKILLS, get_skill
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", choices=("act", "smolvla", "pi05", "compact"), required=True)
-    parser.add_argument("--skill", default="mug_pick_place")
+    parser.add_argument("--policy", choices=POLICY_KINDS, required=True)
+    parser.add_argument("--skill", default="mug_pick_place", choices=sorted(SKILLS))
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--prefixes", type=int, nargs="+", default=None)
     parser.add_argument("--episodes", type=int, default=10)
@@ -40,23 +41,19 @@ def main() -> None:
     }
     rows = []
     for prefix in prefixes:
-        policy, preprocessor, postprocessor, instruction = load_policy(
+        policy, preprocessor, postprocessor = load_policy(
             args.policy, args.checkpoint, args.device, prefix=None if args.policy == "compact" else prefix,
         )
         successes = 0
         for index in range(args.episodes):
             seed = args.seed_offset + index
             env = skill.make_env()
-            if skill.randomize == "block":
-                env.reset(seed=seed, randomize_block=True)
-            else:
-                env.reset(seed=seed, randomize_objects=True)
             try:
+                reset_for_skill(skill, env, seed, jitter=0.015)
                 result = run_aloha_act_episode(
                     env, policy, preprocessor=preprocessor, postprocessor=postprocessor,
-                    device=args.device, max_policy_steps=skill.max_policy_steps,
-                    task=skill.name, skill=skill,
-                    instruction=instruction if args.policy != "act" else None,
+                    device=args.device, max_policy_steps=skill.max_policy_steps, skill=skill,
+                    instruction=skill.instruction_for(seed) if uses_language(args.policy) else None,
                 )
             finally:
                 env.close()

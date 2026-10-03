@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from bimanual.control.aloha_context import cooperative_state
 from bimanual.control.aloha_ik import AlohaIK, top_down_quaternion
 from bimanual.control.trajectories import min_jerk_trajectory
 from bimanual.sim.aloha_env import AlohaPhysicalEnv
@@ -28,6 +29,7 @@ def step_recorded(
             {
                 "timestamp": float(env.data.time),
                 "observation": env.observation(),
+                "cooperative_state": cooperative_state(env),
                 "frames": env.render(),
                 "oracle": env.oracle_state(),
                 "action": action.astype(np.float32, copy=True),

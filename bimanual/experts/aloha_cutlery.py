@@ -8,6 +8,7 @@ import numpy as np
 import mujoco
 
 from bimanual.control.aloha_ik import AlohaIK
+from bimanual.evaluation.aloha_predicates import cutlery_placed
 from bimanual.experts.aloha_motion import CLOSED, OPEN, move_arm, step_recorded
 from bimanual.sim.aloha_env import AlohaTableSettingEnv
 
@@ -68,12 +69,8 @@ def run_cutlery_place(
         step_recorded(env, env.data.ctrl.copy(), arm, "SETTLE", record)
 
     final = env.oracle_state()[f"{utensil}_pos"].copy()
-    success = bool(
-        peak > initial[2] + 0.07
-        and np.linalg.norm(final[:2] - target[:2]) < 0.035
-        and final[2] < 0.035
-        and env.state_vector()[gripper_index] > 0.03
-    )
+    success = cutlery_placed(initial, final, target, peak_height=peak,
+                             gripper_opening=float(env.state_vector()[gripper_index]))
     return AlohaCutleryResult(success, utensil, initial, final, target, peak, record or [])
 
 

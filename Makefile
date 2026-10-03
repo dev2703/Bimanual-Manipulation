@@ -39,13 +39,13 @@ demo:  ## Render the combined expert to video.
 	$(UV) run python scripts/render_aloha_expert.py --task combined --seed 0
 
 gen-data:  ## Record a one-episode smoke dataset for SKILL.
-	$(UV) run python -m bimanual.experts.generate_aloha_table --skill $(SKILL) --episodes 1 --root outputs/aloha_gen_data_smoke --overwrite
+	$(UV) run python -m bimanual.data.record --skill $(SKILL) --episodes 1 --root outputs/smoke/aloha_$(BUCKET) --overwrite
 
 audit:  ## Audit a recorded dataset (DATA defaults to outputs/aloha_<bucket>_train).
 	$(UV) run python -m bimanual.data.audit $(DATA)
 
 replay:  ## Replay a recorded dataset's actions and check success.
-	$(UV) run python -m bimanual.data.replay_aloha_table $(DATA) --skill $(SKILL)
+	$(UV) run python -m bimanual.data.replay $(DATA) --skill $(SKILL)
 
 verify-data:  ## Check datasets against DATA_INDEX.json.
 	$(UV) run python -m bimanual.data.verify_index

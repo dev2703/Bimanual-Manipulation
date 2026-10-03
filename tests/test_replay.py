@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bimanual.data.replay_aloha_table import replay_episode
+from bimanual.data.replay import replay_episode
 from bimanual.sim.aloha_env import TABLE_SETTING_OBJECTS, AlohaTableSettingEnv
 
 

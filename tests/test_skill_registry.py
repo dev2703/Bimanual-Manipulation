@@ -1,7 +1,41 @@
 import numpy as np
+import pytest
 
 from bimanual.evaluation.aloha_predicates import mug_placed
-from bimanual.skills.registry import RolloutState, SKILLS, get_skill
+from bimanual.evaluation.skill_gate import reset_for_skill
+from bimanual.skills.registry import RolloutState, SKILLS, get_skill, handoff_carrier, recovery_shift
+
+
+def test_handoff_instruction_names_the_arms_of_each_episode():
+    skill = get_skill("baton_handoff")
+    for seed in (100000, 100001):
+        carrier = handoff_carrier(seed)
+        receiver = "right" if carrier == "left" else "left"
+        assert skill.instruction_for(seed) == f"Hand the baton from the {carrier} gripper to the {receiver} gripper."
+    assert skill.instruction_for(2) != skill.instruction_for(3)
+    assert get_skill("mug_pick_place").instruction_for(7) == get_skill("mug_pick_place").instruction
+
+
+def test_recovery_shift_is_seeded_and_fixed_length():
+    assert np.allclose(recovery_shift(5), recovery_shift(5))
+    assert not np.allclose(recovery_shift(5), recovery_shift(6))
+    assert np.isclose(np.linalg.norm(recovery_shift(5)), 0.035)
+
+
+@pytest.mark.parametrize("name", sorted(SKILLS))
+def test_untouched_scene_fails_every_skill_check(name):
+    """Idle arms must never be scored as success, and every skill must be scorable."""
+    skill = get_skill(name)
+    env = skill.make_env()
+    try:
+        reset_for_skill(skill, env, 100000, jitter=0.015)
+        state = skill.begin(env)
+        for _ in range(30):
+            env.step(env.data.ctrl.copy())
+            skill.update(env, state)
+        assert not skill.succeeded(env, state)
+    finally:
+        env.close()
 
 
 def test_registry_covers_the_dinner_skills():

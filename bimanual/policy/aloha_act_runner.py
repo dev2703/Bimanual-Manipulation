@@ -49,7 +49,6 @@ def run_aloha_act_episode(
     postprocessor: Any | None = None,
     device: str = "mps",
     max_policy_steps: int = 160,
-    lift_threshold: float = 0.08,
     retain_steps: int = 5,
     task: str = "block_lift",
     skill: Skill | None = None,
@@ -66,9 +65,6 @@ def run_aloha_act_episode(
         raise ValueError("language-conditioned inference requires the saved preprocessor")
     policy.reset()
     state = skill.begin(env)
-    # Callers can still tighten the block lift threshold without a new skill.
-    if skill.check is None:
-        state.initial_height = float(state.initial[2])
     retained = 0
     for policy_step in range(1, max_policy_steps + 1):
         raw = _raw_observation(env, device, instruction)
@@ -81,14 +77,10 @@ def run_aloha_act_episode(
         ALOHA_BIMANUAL.validate(env.state_vector(), action_np)
         for _ in range(CONTROL_STEPS_PER_ACTION):
             env.step(action_np)
+            skill.update(env, state)
             if after_control_step is not None:
                 after_control_step()
-        skill.update(env, state)
-        if skill.check is None:
-            successful_now = float(state.position[2]) >= float(state.initial[2]) + lift_threshold
-        else:
-            successful_now = skill.succeeded(env, state)
-        retained = retained + 1 if successful_now else 0
+        retained = retained + 1 if skill.succeeded(env, state) else 0
         xy_error = None if state.target is None else float(np.linalg.norm(state.position[:2] - state.target[:2]))
         if retained >= retain_steps:
             return AlohaRolloutResult(

@@ -9,27 +9,15 @@ import numpy as np
 
 from bimanual.control.aloha_ik import ARM_JOINTS, AlohaIK, top_down_quaternion
 from bimanual.control.trajectories import min_jerk_trajectory
+from bimanual.evaluation.aloha_contacts import body_touches
+from bimanual.evaluation.aloha_predicates import handoff_succeeded
 from bimanual.experts.aloha_motion import CLOSED, OPEN, move_arm, step_recorded
 from bimanual.sim.aloha_env import AlohaPhysicalEnv
 
-GRASP_OFFSET = 0.052
 NECK = 0.042
 # Position actuators settle about 1.6cm below the commanded site. Aim high so
 # the fingertip site lands on the neck.
 SITE_SAG = np.array([0.0, 0.0, 0.018])
-# A closer-to-center receiver grasp was tried to reduce the post-release
-# cantilever moment (see RECEIVER_SETTLE below), but it made the receiver's
-# target sit too close to the carrier's own gripper and collapsed contact
-# rate further (measured: ~30% -> ~5% of seeds getting any contact). Reverted
-# to the symmetric far-end offset; the cantilever-slip failure mode after
-# release is still open and needs dedicated tuning, not another guess.
-
-
-def receiver_grasp_from_object(env: AlohaPhysicalEnv) -> np.ndarray:
-    """Expert-only target: right end of the moving baton in world space."""
-    body = env.model.body("task_block").id
-    rotation = env.data.xmat[body].reshape(3, 3)
-    return env.data.xpos[body].copy() + rotation[:, 0] * GRASP_OFFSET + [0, 0, 0.015]
 
 
 @dataclass(frozen=True)
@@ -44,39 +32,6 @@ class AlohaHandoffResult:
     record: list[dict]
     receiver_contact_steps: int = 0
     carrier: str = "left"
-
-
-def handoff_succeeded(
-    initial_height: float, peak_height: float, after_release_height: float,
-    final_height: float, carrier_opening: float, receiver_opening: float,
-    receiver_contact_steps: int,
-) -> bool:
-    """Require receiver contact, carrier release, and retained support."""
-    return bool(peak_height > initial_height + 0.07
-                and receiver_contact_steps >= 20
-                and after_release_height > initial_height + 0.06
-                and final_height > initial_height + 0.06
-                and carrier_opening > 0.03 and receiver_opening < 0.02)
-
-
-def _track_to_object(
-    env: AlohaPhysicalEnv, ik: AlohaIK, offset: list[float], total_steps: int,
-    arm: str, phase: str, record: list[dict] | None, segment_steps: int = 16,
-    gripper: float = OPEN,
-) -> None:
-    remaining = total_steps
-    while remaining > 0:
-        step = min(segment_steps, remaining)
-        target = receiver_grasp_from_object(env) + np.asarray(offset)
-        try:
-            move_arm(env, ik, target, gripper, step, arm, phase, record)
-        except RuntimeError:
-            # The swinging object can momentarily put the re-localized target
-            # just outside this segment's reachable envelope; hold position
-            # and re-localize again next segment rather than aborting the
-            # whole handoff over one transient IK miss.
-            pass
-        remaining -= step
 
 
 def _baton_addresses(env: AlohaPhysicalEnv) -> tuple[int, int]:
@@ -250,15 +205,7 @@ def run_baton_handoff(
         action = env.data.ctrl.copy()
         action[receiver_grip] = CLOSED
         step_recorded(env, action, receiver, "DUAL_HOLD", record)
-        for index in range(env.data.ncon):
-            contact = env.data.contact[index]
-            bodies = (
-                env.model.body(int(env.model.geom_bodyid[contact.geom1])).name,
-                env.model.body(int(env.model.geom_bodyid[contact.geom2])).name,
-            )
-            if "task_block" in bodies and any(name.startswith(f"{receiver}/") for name in bodies):
-                receiver_contacts += 1
-                break
+        receiver_contacts += int(body_touches(env.model, env.data, "task_block", f"{receiver}/"))
     pinched = float(env.state_vector()[receiver_grip]) > 0.010
     if receiver_contacts >= 20 and pinched:
         for _ in range(40):

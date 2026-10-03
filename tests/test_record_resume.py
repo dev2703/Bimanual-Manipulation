@@ -6,13 +6,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from bimanual.experts.generate_aloha_table import (
-    SKILLS,
-    _compatible_features,
-    _recover_manifests,
-    _save_manifests,
-    make_features,
-)
+from bimanual.data.record import _compatible_features, _recover_manifests, _save_manifests, make_features
+from bimanual.skills.registry import SKILLS
 
 
 def _partial(root, seeds=(0, 1)):
@@ -48,7 +43,7 @@ def test_resume_rejects_corrupt_seed_or_changed_scene(tmp_path):
 
 
 def test_feature_check_allows_lerobot_indices_but_rejects_wrong_action_shape():
-    declared = make_features()
+    declared = make_features(("plate", "mug"))
     actual = {name: {**feature} for name, feature in declared.items()}
     actual["timestamp"] = {"dtype": "float32", "shape": (1,), "names": None}
     assert _compatible_features(actual, declared)
