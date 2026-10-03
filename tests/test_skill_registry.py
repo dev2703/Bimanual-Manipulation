@@ -16,6 +16,43 @@ def test_handoff_instruction_names_the_arms_of_each_episode():
     assert get_skill("mug_pick_place").instruction_for(7) == get_skill("mug_pick_place").instruction
 
 
+def test_memory_instruction_lists_dinner_goals_already_done():
+    assert get_skill("drawer_open").memory_instruction_for(0) == (
+        "Task: Set the dinner table. Done: nothing yet. Now: drawer open with right arm.")
+    assert get_skill("spoon_place").memory_instruction_for(0) == (
+        "Task: Set the dinner table. Done: drawer open, plate pick place, fork place. "
+        "Now: spoon place with right arm.")
+    assert (get_skill("plate_recovery").memory_instruction_for(3)
+            == get_skill("plate_pick_place").memory_instruction_for(3))
+    assert get_skill("block_lift").memory_instruction_for(0) == (
+        "Task: Lift the block off the table. Done: nothing yet. Now: block lift with both arms.")
+
+
+def test_visual_randomization_changes_colours_but_not_the_scene_state():
+    skill = get_skill("plate_pick_place")
+    env = skill.make_env()
+    try:
+        robot = np.array([env.model.body(int(b)).name.startswith(("left/", "right/"))
+                          for b in env.model.geom_bodyid])
+        reset_for_skill(skill, env, 7, jitter=0.015)
+        plain_qpos, plain_rgba = env.data.qpos.copy(), env.model.geom_rgba.copy()
+        plain_mat, plain_light = env.model.mat_rgba.copy(), env.model.light_diffuse.copy()
+        reset_for_skill(skill, env, 7, jitter=0.015, visuals=True)
+        np.testing.assert_array_equal(env.data.qpos, plain_qpos)
+        np.testing.assert_array_equal(env.model.geom_rgba[robot], plain_rgba[robot])
+        assert (not np.array_equal(env.model.mat_rgba, plain_mat)
+                or not np.array_equal(env.model.geom_rgba, plain_rgba))
+        assert not np.array_equal(env.model.light_diffuse, plain_light)
+        drawn = env.model.light_diffuse.copy()
+        reset_for_skill(skill, env, 7, jitter=0.015, visuals=True)
+        np.testing.assert_array_equal(env.model.light_diffuse, drawn)
+        reset_for_skill(skill, env, 7, jitter=0.015)
+        np.testing.assert_array_equal(env.model.geom_rgba, plain_rgba)
+        np.testing.assert_array_equal(env.model.light_diffuse, plain_light)
+    finally:
+        env.close()
+
+
 def test_recovery_shift_is_seeded_and_fixed_length():
     assert np.allclose(recovery_shift(5), recovery_shift(5))
     assert not np.allclose(recovery_shift(5), recovery_shift(6))

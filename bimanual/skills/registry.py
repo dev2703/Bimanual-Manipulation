@@ -30,11 +30,17 @@ from bimanual.experts.aloha_handoff import run_baton_handoff
 from bimanual.experts.aloha_mug import run_mug_pick_place
 from bimanual.experts.aloha_plate import run_plate_pick_place
 from bimanual.experts.aloha_pour import run_pour_pose
+from bimanual.memory.serialization import serialize_instruction
+from bimanual.memory.task_memory import TaskMemory
 from bimanual.sim.aloha_env import AlohaPhysicalEnv, AlohaTableSettingEnv
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets" / "robots" / "aloha"
 GRIPPER_INDEX = {"left": 6, "right": 13}
 RECOVERY_SHIFT = 0.035
+DINNER_TASK = "Set the dinner table"
+# Same order as the full dinner sequence gate.
+DINNER_ORDER = ("drawer_open", "plate_pick_place", "fork_place", "spoon_place",
+                "mug_pick_place", "baton_handoff", "pour_pose")
 
 
 @dataclass
@@ -72,6 +78,7 @@ class Skill:
     instruction_fn: Callable[[int], str] | None = None
     recovery: bool = False
     setup: Callable | None = None  # unrecorded precondition run after reset
+    memory_goal: str | None = None  # dinner goal this skill fills, if not its own name
 
     def scene_path(self) -> Path:
         return ASSETS / self.scene_name
@@ -84,6 +91,18 @@ class Skill:
     def instruction_for(self, seed: int) -> str:
         """Language label for one episode; some skills vary with the seed."""
         return self.instruction if self.instruction_fn is None else self.instruction_fn(seed)
+
+    def memory_instruction_for(self, seed: int) -> str:
+        """Decision A7 prompt: dinner goals already done, then this skill as the active goal."""
+        goal = self.memory_goal or self.name
+        if goal in DINNER_ORDER:
+            memory = TaskMemory(DINNER_TASK, list(DINNER_ORDER))
+            for _ in range(DINNER_ORDER.index(goal)):
+                memory.mark_success()
+        else:
+            memory = TaskMemory(self.instruction_for(seed).rstrip("."), [goal])
+        arms = f"{self.arms[0]} arm" if len(self.arms) == 1 else "both arms"
+        return serialize_instruction(memory, arms)
 
     def begin(self, env) -> RolloutState:
         oracle = env.oracle_state()
@@ -251,6 +270,7 @@ SKILLS: dict[str, Skill] = {
         "Set the dinner table: place the serving plate in the centre.",
         "aloha_contact_plate_moved_recovery_v1", _run_plate_recovery, ("right",), "plate_pos",
         gate_passed=True, on_step=_carry_tracker("plate_pos"), check=_plate_ok, recovery=True,
+        memory_goal="plate_pick_place",
     ),
     "drawer_open": Skill(
         "drawer_open", "drawer", "task_table_setting_drawer_v2.xml",
@@ -287,7 +307,7 @@ SKILLS: dict[str, Skill] = {
     "baton_handoff": Skill(
         "baton_handoff", "handoff", "task_handoff_baton.xml",
         "Hand the baton from one gripper to the other.",
-        "aloha_contact_handoff_v1", _run_handoff, ("left", "right"), "task_block_pos",
+        "aloha_contact_handoff_v2", _run_handoff, ("left", "right"), "task_block_pos",
         gate_passed=True, env_kind="physical", randomize="block", default_prefix=5,
         on_step=_handoff_step, check=_handoff_ok, instruction_fn=_handoff_instruction,
     ),

@@ -8,14 +8,14 @@
       material="linen" contype="0" conaffinity="0" group="5"/>
     <body name="task_block" pos="0 0.18 0.02">
       <freejoint/>
-      <!-- Box body plus a capsule neck at each end. The ViperX fingertip
-           spheres pinch a neck; they slip off the flat box. -->
+      <!-- Box body plus a narrower flat-sided neck at each end. The ViperX
+           fingertips slip off the wide body; a round neck pivots in the pinch. -->
       <geom name="handoff_baton" type="box" size="0.022 0.012 0.012"
         mass="0.02" condim="6" friction="2.0 0.02 0.002"
         solref="0.01 1" rgba="0.62 0.34 0.15 1"/>
-      <geom name="handoff_baton_neck" type="capsule" fromto="0.028 0 0 0.056 0 0" size="0.008"
+      <geom name="handoff_baton_neck" type="box" pos="0.042 0 0" size="0.014 0.008 0.008"
         mass="0.004" condim="6" friction="4.0 0.02 0.002" solref="0.01 1" rgba="0.45 0.24 0.10 1"/>
-      <geom name="handoff_baton_neck_2" type="capsule" fromto="-0.056 0 0 -0.028 0 0" size="0.008"
+      <geom name="handoff_baton_neck_2" type="box" pos="-0.042 0 0" size="0.014 0.008 0.008"
         mass="0.004" condim="6" friction="4.0 0.02 0.002" solref="0.01 1" rgba="0.45 0.24 0.10 1"/>
     </body>
   </worldbody>

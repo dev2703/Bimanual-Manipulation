@@ -17,12 +17,16 @@ def _git_commit() -> str:
         return "unknown"
 
 
-def reset_for_skill(skill: Skill, env, seed: int, jitter: float) -> None:
-    """Reset to the seeded start of `skill`, including any declared precondition."""
+def reset_for_skill(skill: Skill, env, seed: int, jitter: float, visuals: bool = False) -> None:
+    """Reset to the seeded start of `skill`, including any declared precondition.
+
+    `visuals` adds Level 2 colour and lighting randomization for the seed.
+    """
     if skill.randomize == "block":
         env.reset(seed=seed, randomize_block=True)
     else:
         env.reset(seed=seed, randomize_objects=True, position_jitter=jitter)
+    env.set_visuals(seed if visuals else None)
     env.gate_seed = seed
     if skill.setup is not None:
         skill.setup(env)

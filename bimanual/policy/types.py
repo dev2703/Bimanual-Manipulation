@@ -93,6 +93,7 @@ class EpisodeManifest:
     control_hz: int = 30
     policy_hz: int = 10
     artifact_hashes: dict[str, str] = field(default_factory=dict)
+    visual_randomization: str = "none"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

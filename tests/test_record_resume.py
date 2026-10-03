@@ -1,4 +1,4 @@
-"""Interrupted dinner datasets resume only with matching seeds and scene."""
+"""Interrupted dinner datasets resume only with matching seeds, scene and visuals."""
 
 import json
 
@@ -21,25 +21,27 @@ def _partial(root, seeds=(0, 1)):
 def test_recover_partial_dataset_and_save_manifests(tmp_path):
     _partial(tmp_path)
     hashes = {"task_table_setting_plate_v2.xml": "sha256:test"}
-    manifests = _recover_manifests(tmp_path, 2, 0, SKILLS["plate_pick_place"], "train", hashes)
+    manifests = _recover_manifests(tmp_path, 2, 0, SKILLS["plate_pick_place"], "train", hashes, True)
     assert [item["seed"] for item in manifests] == [0, 1]
     _save_manifests(tmp_path, manifests)
     assert json.loads((tmp_path / "episode_manifests.json").read_text()) == manifests
-    assert _recover_manifests(tmp_path, 2, 0, SKILLS["plate_pick_place"], "train", hashes) == manifests
+    assert _recover_manifests(tmp_path, 2, 0, SKILLS["plate_pick_place"], "train", hashes, True) == manifests
 
 
 def test_resume_rejects_corrupt_seed_or_changed_scene(tmp_path):
     _partial(tmp_path, seeds=(0, 9))
     skill = SKILLS["plate_pick_place"]
     with pytest.raises(ValueError, match="unexpected scene seed"):
-        _recover_manifests(tmp_path, 2, 0, skill, "train", {"scene": "sha256:a"})
+        _recover_manifests(tmp_path, 2, 0, skill, "train", {"scene": "sha256:a"}, True)
 
     _partial_root = tmp_path / "valid"
     _partial(_partial_root)
-    manifests = _recover_manifests(_partial_root, 2, 0, skill, "train", {"scene": "sha256:a"})
+    manifests = _recover_manifests(_partial_root, 2, 0, skill, "train", {"scene": "sha256:a"}, True)
     _save_manifests(_partial_root, manifests)
     with pytest.raises(ValueError, match="manifests disagree"):
-        _recover_manifests(_partial_root, 2, 0, skill, "train", {"scene": "sha256:b"})
+        _recover_manifests(_partial_root, 2, 0, skill, "train", {"scene": "sha256:b"}, True)
+    with pytest.raises(ValueError, match="manifests disagree"):
+        _recover_manifests(_partial_root, 2, 0, skill, "train", {"scene": "sha256:a"}, False)
 
 
 def test_feature_check_allows_lerobot_indices_but_rejects_wrong_action_shape():
@@ -53,5 +55,5 @@ def test_feature_check_allows_lerobot_indices_but_rejects_wrong_action_shape():
 
 def test_resume_empty_dataset_needs_no_parquet(tmp_path):
     assert _recover_manifests(
-        tmp_path, 0, 0, SKILLS["drawer_open"], "train", {"scene": "sha256:a"},
+        tmp_path, 0, 0, SKILLS["drawer_open"], "train", {"scene": "sha256:a"}, True,
     ) == []

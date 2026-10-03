@@ -4,8 +4,11 @@
     python -m bimanual.data.record --skill plate_pick_place --split train --episodes 50 --resume
 
 Each frame stores the 14-D `observation.state` and the 37-D
-`observation.cooperative_state`, so one dataset serves both sides of the
-state ablation. Train, validation and test seeds are disjoint by offset.
+`observation.cooperative_state`, and both the plain `task` and the decision A7
+`memory_instruction`, so one dataset serves both sides of the state and the
+instruction ablations. Scene colours and lighting are randomized per seed
+(Level 2) unless `--no-visuals` is passed. Train, validation and test seeds are
+disjoint by offset.
 """
 
 from __future__ import annotations
@@ -68,6 +71,7 @@ def make_features(objects: tuple[str, ...], drawer: bool = True, recovery: bool 
         "privileged.arm": {"dtype": "string", "shape": (1,), "names": None},
         "privileged.sim_time": {"dtype": "float32", "shape": (1,), "names": None},
         "privileged.scene_seed": {"dtype": "int64", "shape": (1,), "names": None},
+        "memory_instruction": {"dtype": "string", "shape": (1,), "names": None},
     }
     if drawer:
         features["privileged.drawer_opening"] = {"dtype": "float32", "shape": (1,), "names": None}
@@ -77,7 +81,7 @@ def make_features(objects: tuple[str, ...], drawer: bool = True, recovery: bool 
 
 
 def write_episode(dataset, record: list[dict], task: str, seed: int, objects: tuple[str, ...],
-                  perturbation_xy: np.ndarray | None = None) -> None:
+                  perturbation_xy: np.ndarray | None = None, memory_instruction: str | None = None) -> None:
     """Append one expert episode. A perturbation marks a recovery episode."""
     recovery = perturbation_xy is not None
     if recovery and np.asarray(perturbation_xy).shape != (2,):
@@ -97,6 +101,7 @@ def write_episode(dataset, record: list[dict], task: str, seed: int, objects: tu
             "privileged.arm": tick["arm"],
             "privileged.sim_time": np.array([tick["timestamp"]], dtype=np.float32),
             "privileged.scene_seed": np.array([seed], dtype=np.int64),
+            "memory_instruction": memory_instruction or task,
             "task": task,
         })
         if "drawer_opening" in oracle:
@@ -115,7 +120,7 @@ def write_episode(dataset, record: list[dict], task: str, seed: int, objects: tu
     dataset.save_episode()
 
 
-def _manifest(skill: Skill, seed: int, split: str, hashes: dict[str, str]) -> dict:
+def _manifest(skill: Skill, seed: int, split: str, hashes: dict[str, str], visuals: bool) -> dict:
     return EpisodeManifest(
         environment="aloha_table_setting" if skill.env_kind == "table" else "aloha_physical",
         embodiment=ALOHA_BIMANUAL.name,
@@ -124,11 +129,12 @@ def _manifest(skill: Skill, seed: int, split: str, hashes: dict[str, str]) -> di
         split=split,
         source_expert=skill.source_expert,
         artifact_hashes=hashes,
+        visual_randomization="L2" if visuals else "none",
     ).to_dict()
 
 
 def _recover_manifests(root: Path, completed: int, offset: int, skill: Skill,
-                       split: str, hashes: dict[str, str]) -> list[dict]:
+                       split: str, hashes: dict[str, str], visuals: bool) -> list[dict]:
     """Verify saved episodes before appending to an interrupted collection."""
     if completed == 0:
         path = root / "episode_manifests.json"
@@ -147,12 +153,12 @@ def _recover_manifests(root: Path, completed: int, offset: int, skill: Skill,
     for index in range(completed):
         if set(seeds[episodes == index].tolist()) != {offset + index}:
             raise ValueError(f"saved episode {index} has an unexpected scene seed")
-    expected = [_manifest(skill, offset + index, split, hashes) for index in range(completed)]
+    expected = [_manifest(skill, offset + index, split, hashes, visuals) for index in range(completed)]
     path = root / "episode_manifests.json"
     if path.exists():
         recorded = json.loads(path.read_text())
         if len(recorded) > completed or recorded != expected[:len(recorded)]:
-            raise ValueError("existing episode manifests disagree with this skill, split, or scene")
+            raise ValueError("existing episode manifests disagree with this skill, split, scene or visuals")
     return expected
 
 
@@ -183,7 +189,8 @@ def _scene_schema(skill: Skill) -> tuple[tuple[str, ...], bool]:
 
 
 def record_dataset(skill: Skill, split: str, episodes: int, root: Path, repo_id: str,
-                   resume: bool = False, overwrite: bool = False, checkpoint_every: int = 1) -> dict:
+                   resume: bool = False, overwrite: bool = False, checkpoint_every: int = 1,
+                   visuals: bool = True) -> dict:
     """Record `episodes` expert demonstrations and return the audit report."""
     if resume and not root.exists():
         raise FileNotFoundError(f"cannot resume missing dataset root: {root}")
@@ -202,7 +209,7 @@ def record_dataset(skill: Skill, split: str, episodes: int, root: Path, repo_id:
         start = int(json.loads((root / "meta/info.json").read_text())["total_episodes"])
         if start > episodes:
             raise ValueError(f"dataset already has {start} episodes, more than requested {episodes}")
-        manifests = _recover_manifests(root, start, offset, skill, split, hashes)
+        manifests = _recover_manifests(root, start, offset, skill, split, hashes, visuals)
         dataset = LeRobotDataset.resume(repo_id=repo_id, root=root)
         if dataset.meta.fps != FPS or not _compatible_features(dataset.meta.features, features):
             raise ValueError("existing dataset timing or feature schema does not match")
@@ -215,15 +222,16 @@ def record_dataset(skill: Skill, split: str, episodes: int, root: Path, repo_id:
         seed = offset + index
         env = skill.make_env()
         try:
-            reset_for_skill(skill, env, seed, jitter=0.015)
+            reset_for_skill(skill, env, seed, jitter=0.015, visuals=visuals)
             result = skill.run(env, record_frames=True)
         finally:
             env.close()
         if not result.success:
             raise RuntimeError(f"{skill.name} expert failed seed={seed}: {result}")
         write_episode(dataset, result.record, skill.instruction_for(seed), seed, objects,
-                      perturbation_xy=recovery_shift(seed) if skill.recovery else None)
-        manifests.append(_manifest(skill, seed, split, hashes))
+                      perturbation_xy=recovery_shift(seed) if skill.recovery else None,
+                      memory_instruction=skill.memory_instruction_for(seed))
+        manifests.append(_manifest(skill, seed, split, hashes, visuals))
         _save_manifests(root, manifests)
         print(f"episode={index + 1}/{episodes} seed={seed} frames={len(result.record)}", flush=True)
         if (index + 1) % checkpoint_every == 0 and index + 1 < episodes:
@@ -243,6 +251,7 @@ def main() -> None:
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--checkpoint-every", type=int, default=1)
+    parser.add_argument("--no-visuals", action="store_true", help="disable Level 2 colour/lighting randomization")
     args = parser.parse_args()
     if args.overwrite and args.resume:
         parser.error("--overwrite and --resume are mutually exclusive")
@@ -254,6 +263,7 @@ def main() -> None:
         args.root or Path(f"outputs/aloha_{skill.bucket}_{args.split}"),
         args.repo_id or f"local/aloha-dinner-{skill.bucket}",
         resume=args.resume, overwrite=args.overwrite, checkpoint_every=args.checkpoint_every,
+        visuals=not args.no_visuals,
     )
     print(f"audit={json.dumps(report, sort_keys=True)}")
 

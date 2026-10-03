@@ -26,9 +26,11 @@ Rendering tests need an OpenGL context; run them outside restricted sandboxes.
 |---|---|---|
 | Drawer, plate, mug, bottle, block, plate recovery | marked passed in the registry | earlier 50-episode gates; rerun with `make gate SKILL=...` |
 | Fork and spoon | 50/50 | drawer is opened as an unrecorded setup step |
-| Baton handoff | 50/50 | carrier alternates left/right by seed |
+| Baton handoff | 50/50 | actuator-only (no state writes); carrier alternates left/right by seed |
 | Pour | 50/50 | ballistic stream proxy, see below |
-| Dinner sequence | 50/50 on two seed sets | drawer, plate, fork, spoon, mug, handoff, pour |
+| Dinner sequence | 50/50 | drawer, plate, fork, spoon, mug, handoff, pour |
+
+Every skill's recorded actions replay to success (`make replay SKILL=...`).
 
 ## Layout
 
@@ -53,9 +55,15 @@ Recordings are written per skill and finalize each episode individually:
 
 ```bash
 .venv/bin/python -m bimanual.data.record \
-  --skill plate_pick_place --split train --episodes 50 [--resume]
+  --skill plate_pick_place --split train --episodes 50 [--resume] [--no-visuals]
 make audit replay SKILL=plate_pick_place
 ```
+
+Each frame carries the 14-D and 37-D state, the plain `task` and the
+memory-serialized `memory_instruction` ("Task: Set the dinner table. Done: ...
+Now: ..."), so one dataset serves both ablations. Scene colours and lighting
+are randomized per seed (Level 2) unless `--no-visuals` is given; object
+placement for a seed is the same either way.
 
 
 ## Training and evaluation reference

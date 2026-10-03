@@ -20,6 +20,7 @@ ALOHA_BIMANUAL = EmbodimentSpec(
     camera_names=("overhead_cam", "wrist_cam_left", "wrist_cam_right"),
 )
 
+VISUAL_STREAM = 2  # second SeedSequence word; keeps visual draws off the placement stream
 PHYSICS_HZ = 600
 CONTROL_HZ = 30
 SUBSTEPS = PHYSICS_HZ // CONTROL_HZ
@@ -43,7 +44,32 @@ class AlohaPhysicalEnv:
         self._actuator_names = tuple(self.model.actuator(i).name for i in range(self.model.nu))
         if self._actuator_names != tuple(name.replace(".", "/") for name in ACTION_NAMES):
             raise ValueError(f"unexpected ALOHA actuator order: {self._actuator_names}")
+        self._visual_defaults = (self.model.geom_rgba.copy(), self.model.mat_rgba.copy(),
+                                 self.model.light_diffuse.copy())
         self.reset()
+
+    def set_visuals(self, seed: int | None) -> None:
+        """Level 2 visual randomization: scene colours and lighting, never physics.
+
+        `None` restores the authored look. Robot geoms and materials keep their
+        colours. The draw uses its own seed stream, so object placement for a
+        seed is identical with and without randomization.
+        """
+        geom_rgba, mat_rgba, light_diffuse = self._visual_defaults
+        self.model.geom_rgba[:] = geom_rgba
+        self.model.mat_rgba[:] = mat_rgba
+        self.model.light_diffuse[:] = light_diffuse
+        if seed is None:
+            return
+        rng = np.random.default_rng([seed, VISUAL_STREAM])
+        robot = np.array([self.model.body(int(body)).name.startswith(("left/", "right/"))
+                          for body in self.model.geom_bodyid])
+        scene_materials = set(self.model.geom_matid[~robot]) - set(self.model.geom_matid[robot]) - {-1}
+        for geom in np.flatnonzero(~robot & (self.model.geom_matid < 0)):
+            self.model.geom_rgba[geom, :3] = np.clip(geom_rgba[geom, :3] * rng.uniform(0.75, 1.25, 3), 0, 1)
+        for material in sorted(scene_materials):
+            self.model.mat_rgba[material, :3] = np.clip(mat_rgba[material, :3] * rng.uniform(0.75, 1.25, 3), 0, 1)
+        self.model.light_diffuse[:] = np.clip(light_diffuse * rng.uniform(0.6, 1.2, (self.model.nlight, 1)), 0, 1)
 
     def reset(self, seed: int = 0, randomize_block: bool = False) -> dict[str, np.ndarray]:
         mujoco.mj_resetDataKeyframe(self.model, self.data, self.model.key("neutral_pose").id)
