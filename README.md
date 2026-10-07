@@ -49,6 +49,21 @@ To add a skill: write an expert `run(env, record_frames=False)` returning a
 result with `.success`, register it in `bimanual/skills/registry.py`, then run
 `make gate SKILL=<name>`.
 
+## Scene previews and assets
+
+```bash
+.venv/bin/python scripts/preview_dinner_scene.py                # ALOHA kitchen PNG
+.venv/bin/python scripts/preview_dinner_scene.py --robot so101  # SO101 CAD-arm PNG
+.venv/bin/python scripts/build_dinner_meshes.py                # regenerate prop STLs
+```
+
+Previews are saved in `outputs/scene_preview/`. The SO101 profile loads the
+vendored MJCF and STL parts from `assets/robots/so101/`; ALOHA uses its own
+Menagerie arm meshes. The four ALOHA dinner variants share
+`assets/robots/aloha/dinner_presentation.xml` for kitchen materials and dressing.
+Its hollow glass and vase meshes are visual-only group 5, hidden from policy
+cameras. Task collision geometry is separate; these props do not simulate fluid.
+
 ## Datasets
 
 Recordings are written per skill and finalize each episode individually:

@@ -14,11 +14,19 @@ from __future__ import annotations
 import mujoco.viewer
 
 from bimanual.legacy_so101.sim.env import BimanualTableEnv
+from bimanual.legacy_so101.sim.scene_builder import TABLE_HEIGHT
 
 
 def main() -> None:
     env = BimanualTableEnv()
-    mujoco.viewer.launch(env.model, env.data)
+    env.model.stat.center[:] = (0, .05, TABLE_HEIGHT + .12)
+    env.model.stat.extent = .9
+    env.model.vis.global_.azimuth = 90
+    env.model.vis.global_.elevation = -28
+    try:
+        mujoco.viewer.launch(env.model, env.data)
+    finally:
+        env.close()
 
 
 if __name__ == "__main__":
