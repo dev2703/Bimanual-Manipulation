@@ -11,20 +11,30 @@ scroll. Close the window to exit.
 
 from __future__ import annotations
 
+import time
+
 import mujoco.viewer
 
-from bimanual.legacy_so101.sim.env import BimanualTableEnv
+from bimanual.legacy_so101.sim.env import BimanualTableEnv, CONTROL_HZ
 from bimanual.legacy_so101.sim.scene_builder import TABLE_HEIGHT
 
 
 def main() -> None:
     env = BimanualTableEnv()
-    env.model.stat.center[:] = (0, .05, TABLE_HEIGHT + .12)
-    env.model.stat.extent = .9
-    env.model.vis.global_.azimuth = 90
-    env.model.vis.global_.elevation = -28
     try:
-        mujoco.viewer.launch(env.model, env.data)
+        with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
+            with viewer.lock():
+                viewer.cam.lookat[:] = (0, .05, TABLE_HEIGHT + .12)
+                viewer.cam.distance = 1.35
+                viewer.cam.azimuth = 90
+                viewer.cam.elevation = -28
+                viewer.opt.sitegroup[:] = 0
+            while viewer.is_running():
+                started = time.monotonic()
+                with viewer.lock():
+                    env.step(env.data.ctrl.copy())
+                viewer.sync()
+                time.sleep(max(0, 1 / CONTROL_HZ - (time.monotonic() - started)))
     finally:
         env.close()
 
